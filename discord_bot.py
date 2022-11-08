@@ -29,7 +29,8 @@ def run_bot(arg_dict):
 
     @client.event
     async def on_message(message):
-        me = message.guild.get_member_named('m227#2818') # TODO: Move one scope higher
+        discord_user = arg_dict['discord_user_name']
+        me = message.guild.get_member_named(discord_user) # TODO: Move one scope higher
         # check if user has been mentioned
         if me in message.mentions:
             author = message.author
