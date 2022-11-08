@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-Initial bot framework taken from Andrés Ignacio Torres <andresitorresm@gmail.com>
-"""
+'''
+This file contains the Telegram bot used for user data entry and for
+calling the Discord bot. Initial bot framework taken from Andrés Ignacio
+Torres <andresitorresm@gmail.com>.
+'''
 
 import os, logging
 from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
@@ -11,7 +13,7 @@ from dotenv import load_dotenv
 from inspect import cleandoc
 load_dotenv('./.env')
 
-class DiscordBot:
+class TelegramBot:
     """
     A class to encapsulate all relevant methods of the bot.
     """
@@ -78,6 +80,7 @@ class DiscordBot:
             ')': '\)',
             '-': '\-',
             }
+        # removes unwanted indentation and adds escape characters as in escape_d
         return cleandoc(msg.translate(msg.maketrans(escape_d)))
 
 
@@ -173,17 +176,17 @@ class DiscordBot:
                     file = self.message_map[Trigger]
                     self.send_text(file, update, context)
                     self.send_signature(update, context)
-                    print(f'{chat_user_client} got links!')
+                    logging.info(f'{chat_user_client} got links!')
                     return
 
 
 def main():
     """
     Entry point of the script. If run directly, instantiates the
-    DiscordBot class and fires it up.
+    TelegramBot class and fires it up.
     """
 
-    discord_bot = DiscordBot()
+    discord_bot = TelegramBot()
     discord_bot.run_bot()
 
 
@@ -192,4 +195,4 @@ if __name__ == "__main__":
     main()
 
 
-# TODO: Switch off logging before bot is 'released'
+# TODO: Switch off logging before bot is released into the wild

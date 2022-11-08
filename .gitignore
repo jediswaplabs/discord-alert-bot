@@ -1,3 +1,6 @@
+main actual.py
+old_discord_bot.py
+
 # Data files
 *.xlsx
 *.csv
