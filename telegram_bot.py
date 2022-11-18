@@ -70,8 +70,8 @@ class TelegramBot:
 
     def parse_msg(self, msg):
         """
-        Helper function to make text output compatible with telegram
-        and remove weird indentation from multiline strings
+        Helper function to create telegram compatible text output
+        and remove unwanted indentation from multiline strings
         """
         escape_d = {
             '.': '\.',
@@ -97,6 +97,20 @@ class TelegramBot:
         context.bot.send_message(
             chat_id=update.message.chat_id,
             text=MENU_MSG,
+            parse_mode='MarkdownV2'
+            )
+
+
+    def send_msg(self, msg):
+        """
+        Sends a text message
+        """
+
+        parsed_msg = parse_msg(msg)
+
+        context.bot.send_message(
+            chat_id=update.message.chat_id,
+            text=parsed_msg,
             parse_mode='MarkdownV2'
             )
 
@@ -186,8 +200,8 @@ def main():
     TelegramBot class and fires it up.
     """
 
-    discord_bot = TelegramBot()
-    discord_bot.run_bot()
+    telegram_bot = TelegramBot()
+    telegram_bot.run_bot()
 
 
 # If the script is run directly, fires the main procedure

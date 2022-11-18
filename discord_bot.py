@@ -5,7 +5,7 @@ import os, discord
 from dotenv import load_dotenv
 
 
-def run_bot(arg_dict):
+def run_discord_bot(arg_dict):
 
     # initialize bot, check for required data
     load_dotenv()
