@@ -1,5 +1,6 @@
 main actual.py
 old_discord_bot.py
+run_discord.py
 
 # Data files
 *.xlsx

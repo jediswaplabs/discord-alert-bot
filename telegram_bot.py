@@ -11,6 +11,8 @@ from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
 from urllib.error import HTTPError
 from dotenv import load_dotenv
 from inspect import cleandoc
+from discord_bot import run_discord_bot
+from helpers import read_from_json, write_to_json
 load_dotenv('./.env')
 
 class TelegramBot:
@@ -26,7 +28,7 @@ class TelegramBot:
 
         # This environment variable should be set before using the bot
         self.token = os.environ['TELEGRAM_BOT_TOKEN']
-
+        self.users = read_from_json('./users.json')
         # These will be checked against as substrings within each
         # message, so different variations are not required if their
         # radix is present (e.g. "all" covers "/all" and "ball")
@@ -90,9 +92,12 @@ class TelegramBot:
         """
 
         MENU_MSG = "*Bot Commands*\n\n" + \
-                    "/add a Discord channel\n" + \
-                    "/edit Discord channels\n" + \
-                    "/edit Discord handle"
+                    "enter Discord /username to listen to\n" + \
+                    "select Discord /guild to listen to\n" + \
+                    "select Discord /channels to listen to\n\n" + \
+                    "/pause Discord alerts\n" + \
+                    "/continue Discord alerts\n"
+
 
         context.bot.send_message(
             chat_id=update.message.chat_id,
@@ -101,18 +106,27 @@ class TelegramBot:
             )
 
 
-    def send_msg(self, msg):
+    def send_msg(self, msg, context):
         """
         Sends a text message
         """
 
-        parsed_msg = parse_msg(msg)
+        parsed_msg = self.parse_msg(msg)
 
         context.bot.send_message(
             chat_id=update.message.chat_id,
             text=parsed_msg,
             parse_mode='MarkdownV2'
             )
+
+    def add_user(self, user_id, update, context):
+        if user_id not in self.users:
+            self.users[user_id] = {}
+            telegram_name = update.message.from_user.username
+            telegram_id = update.message.from_user.id
+            self.users[user_id]['telegram_username'] = telegram_name
+            self.users[user_id]['telegram_id'] = telegram_id
+            write_to_json(self.users, './users.json')
 
 
     def start_dialogue(self, update, context):
@@ -130,6 +144,9 @@ class TelegramBot:
         """
         )
 
+        user_id = update.message.chat_id
+        self.add_user(user_id, update, context)
+
         context.bot.send_message(
             chat_id=update.message.chat_id,
             text=welcome_msg,
@@ -137,6 +154,25 @@ class TelegramBot:
             )
 
         self.add_channel(update, context)
+
+
+    def activate_discord_bot(self, update, context):
+        telegram_user_id = str(update.message.chat_id)
+        run_discord_bot(telegram_user_id)
+        discord_username = self.users[telegram_user_id]['discord_username']
+
+
+    def deactivate_discord_bot(self, update, context):
+        pass
+
+
+    def add_discord_handle(self, update, context):
+        user_id = update.message.chat_id
+        # get discord username from prompt
+        discord_handle = ''
+        self.users[user_id]['discord_username'] = discord_handle
+        write_to_json(self.users, './users.json')
+        pass
 
 
     def add_channel(self, update, context):
@@ -183,16 +219,17 @@ class TelegramBot:
                     self.show_menu(update, context)
                     return
 
-        # Possibility: received command from text_trigger
-        for Trigger in self.text_trigger:
-            for word in words:
-                if word.startswith(Trigger):
-                    file = self.message_map[Trigger]
-                    self.send_text(file, update, context)
-                    self.send_signature(update, context)
-                    logging.info(f'{chat_user_client} got links!')
-                    return
+        # Possibility: received other command
+        for word in words:
 
+            if word.startswith('/continue'):
+                self.activate_discord_bot(update, context)
+                #logging.info('Discord bot activated')
+                return
+
+            elif word.startswith('/pause'):
+                self.deactivate_discord_bot(update, context)
+                return
 
 def main():
     """
@@ -207,6 +244,3 @@ def main():
 # If the script is run directly, fires the main procedure
 if __name__ == "__main__":
     main()
-
-
-# TODO: Switch off logging before bot is released into the wild
