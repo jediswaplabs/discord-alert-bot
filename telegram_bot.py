@@ -11,13 +11,12 @@ from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
 from urllib.error import HTTPError
 from dotenv import load_dotenv
 from inspect import cleandoc
-from discord_bot import run_discord_bot
 from helpers import read_from_json, write_to_json
 load_dotenv('./.env')
 
 class TelegramBot:
     """
-    A class to encapsulate all relevant methods of the bot.
+    A class to encapsulate all relevant methods of the Telegram bot.
     """
 
     def __init__(self):
@@ -25,10 +24,12 @@ class TelegramBot:
         Constructor of the class. Initializes certain instance variables
         and checks if everything's O.K. for the bot to work as expected.
         """
-
         # This environment variable should be set before using the bot
         self.token = os.environ['TELEGRAM_BOT_TOKEN']
+
+        # The single data file the bot is using
         self.users = read_from_json('./users.json')
+
         # These will be checked against as substrings within each
         # message, so different variations are not required if their
         # radix is present (e.g. "all" covers "/all" and "ball")
@@ -43,7 +44,6 @@ class TelegramBot:
         # Configures logging in debug level to check for errors
         logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                             level=logging.DEBUG)
-
 
     def run_bot(self):
         """
@@ -69,6 +69,18 @@ class TelegramBot:
         # Fires up the polling thread. We're live!
         self.updater.start_polling()
 
+    def get_context(self):
+        return context
+
+    def send_to_chat_id(self, chat_id, msg, context):
+
+        parsed_msg = self.parse_msg(msg)
+
+        context.bot.send_message(
+            chat_id=chat_id,
+            text=parsed_msg,
+            parse_mode='MarkdownV2'
+            )
 
     def parse_msg(self, msg):
         """
@@ -85,7 +97,6 @@ class TelegramBot:
         # removes unwanted indentation and adds escape characters as in escape_d
         return cleandoc(msg.translate(msg.maketrans(escape_d)))
 
-
     def show_menu(self, update, context):
         """
         Shows the menu with current items.
@@ -98,23 +109,30 @@ class TelegramBot:
                     "/pause Discord alerts\n" + \
                     "/continue Discord alerts\n"
 
-
         context.bot.send_message(
             chat_id=update.message.chat_id,
             text=MENU_MSG,
             parse_mode='MarkdownV2'
             )
 
-
     def send_msg(self, msg, context):
         """
         Sends a text message
         """
-
         parsed_msg = self.parse_msg(msg)
-
         context.bot.send_message(
             chat_id=update.message.chat_id,
+            text=parsed_msg,
+            parse_mode='MarkdownV2'
+            )
+
+    def send_to_user_id(self, user_id, msg):
+        """
+        Sends a text message to a Telegram Chat ID
+        """
+        parsed_msg = self.parse_msg(msg)
+        context.bot.send_message(
+            chat_id=user_id,
             text=parsed_msg,
             parse_mode='MarkdownV2'
             )
@@ -127,7 +145,6 @@ class TelegramBot:
             self.users[user_id]['telegram_username'] = telegram_name
             self.users[user_id]['telegram_id'] = telegram_id
             write_to_json(self.users, './users.json')
-
 
     def start_dialogue(self, update, context):
         """
@@ -155,17 +172,6 @@ class TelegramBot:
 
         self.add_channel(update, context)
 
-
-    def activate_discord_bot(self, update, context):
-        telegram_user_id = str(update.message.chat_id)
-        run_discord_bot(telegram_user_id)
-        discord_username = self.users[telegram_user_id]['discord_username']
-
-
-    def deactivate_discord_bot(self, update, context):
-        pass
-
-
     def add_discord_handle(self, update, context):
         user_id = update.message.chat_id
         # get discord username from prompt
@@ -173,7 +179,6 @@ class TelegramBot:
         self.users[user_id]['discord_username'] = discord_handle
         write_to_json(self.users, './users.json')
         pass
-
 
     def add_channel(self, update, context):
 
@@ -195,7 +200,6 @@ class TelegramBot:
             disable_web_page_preview=True,
             parse_mode='MarkdownV2'
             )
-
 
     def handle_text_messages(self, update, context):
         """
