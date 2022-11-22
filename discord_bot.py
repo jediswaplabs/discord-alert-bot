@@ -5,60 +5,98 @@ import os, discord
 from dotenv import load_dotenv
 from telegram import Bot
 from helpers import read_from_json
+load_dotenv()
 
+class DiscordBot:
+    """
+    A class to encapsulate all relevant methods of the Discord bot.
+    """
 
-def run_discord_bot(telegram_user_id):
+    def __init__(self):
+        """
+        Constructor of the class. Initializes certain instance variables
+        and checks if everything's O.K. for the bot to work as expected.
+        """
+        # instantiate Telegram bot to send out messages to users
+        TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+        self.telegram_bot = Bot(TELEGRAM_TOKEN)
+        # set of Discord usernames that the Discord bot is listening to currently
+        self.listening_to = set()
+        # dictionary {discord username: telegram id}
+        self.discord_telegram_map = dict()
 
-    load_dotenv()
-    DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
-    TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-    users = read_from_json('./users.json')
-    assert telegram_user_id in users, f'Telegram user {telegram_user_id} not found in db.'
+    def set_telegram_bot_instance(self, instance):
+        '''
+        To be called from outside this scope.
+        '''
+        self.telegram_bot_instance = instance
 
-    intents = discord.Intents.default()
-    intents.members = True
-    intents.message_content = True
-    client = discord.Client(intents=intents)
-    telegram_bot = Bot(TELEGRAM_TOKEN)
-    discord_username = users[telegram_user_id]['discord_username']
+    def update_listening_to(self):
+        '''
+        Populates listening_to & discord_telegram_map.
+        '''
+        users = read_from_json('./users.json')
+        for v in users.values():
+            self.listening_to.add(v['discord_username'])
+        self.discord_telegram_map = {v['discord_username']: v['telegram_id'] for v in users.values()}
 
+    def send_to_TG(self, telegram_user_id, msg):
+        '''
+        Sends a message a specific Telegram user id.
+        '''
+        self.telegram_bot.send_message(telegram_user_id, msg)
 
-#    telegram_bot = arg_dict['telegram_bot_instance']
-#    discord_username = arg_dict['discord_username']
+    def send_to_all(self, msg):
+        '''
+        Sends a message to all Telegram users in users.json.
+        '''
+        telegram_ids = read_from_json('./users.json').keys()
+        for telegram_id in telegram_ids:
+            self.telegram_bot.send_message(telegram_id, msg)
 
-#    required_data = [
-#        'discord_username',
-#        'telegram_username',
-#        'telegram_user_id',
-#        'telegram_bot_instance'
-#        ]
-#    for x in required_data:
-#        assert x in arg_dict, f'A {x} must be specified.'
-#
+    def run_bot(self):
+        '''
+        Actual logic of the bot is stored here.
+        '''
 
-    @client.event
-    async def on_ready():
-        print(f'{client.user.name} has connected to Discord!')
-        out_msg = f'Success! The Discord bot is now listening for mentions of {discord_username}!'
-        telegram_bot.send_message(telegram_user_id, out_msg)
-        #telegram_bot = arg_dict['telegram_bot_instance']
-        #print(f'Telegram bot started.')
+        # update data to listen to at startup
+        self.update_listening_to()
 
-    @client.event
-    async def on_message(message):
+        # fire up discord client
+        intents = discord.Intents.default()
+        intents.members = True
+        intents.message_content = True
+        client = discord.Client(intents=intents)
+        #telegram_bot = self.telegram_bot_instance
 
-        me = message.guild.get_member_named(discord_username) # TODO: Move one scope higher
-        # check if user has been mentioned
-        if me in message.mentions:
-            author = message.author
-            guild_name = message.guild.name
-            print(f'{author} mentioned {me}:\n')
-            msg = message.content
-            out_msg = f'Mentioned by {author} in {guild_name}:\n\n'+msg
-            telegram_bot.send_message(telegram_user_id, out_msg)
+        # actions taken at startup
+        @client.event
+        async def on_ready():
+            print(f'{client.user.name} has connected to Discord!')
+            print(f'Discord bot is now listening for mentions of {self.listening_to}')
+            msg = 'Discord bot is running!'
+            self.send_to_all(msg)
 
-        # TODO: Have bot also check for mentioned roles
-        # TODO: Have bot listen to specified channels only
-        # TODO: Check behavior with multiple instances oopen at once
+        # actions taken on every new Discord message
+        @client.event
+        async def on_message(message):
 
-    client.run(DISCORD_TOKEN)
+            # send out msg to TG user if their Discord handle has been mentioned
+            for username in self.listening_to:
+                user = message.guild.get_member_named(username)
+
+                if user in message.mentions:
+                    telegram_id = self.discord_telegram_map[username]
+                    author = message.author
+                    guild_name = message.guild.name
+                    print(f'{author} mentioned {username}:\n')
+                    msg = message.content[message.content.find('>'):]
+                    out_msg = f'Mentioned by {author} in {guild_name}:\n\n'+msg
+                    self.send_to_TG(telegram_id, out_msg)
+
+            # TODO: Have bot also check for mentioned roles
+            # TODO: Have bot listen to specified channels only
+            # TODO: Check behavior with multiple instances open at once
+
+        DISCORD_TOKEN = os.getenv('DISCORD_TOKEN')
+        client.run(DISCORD_TOKEN)
