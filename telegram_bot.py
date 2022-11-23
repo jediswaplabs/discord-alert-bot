@@ -145,6 +145,13 @@ class TelegramBot:
             self.users[user_id]['telegram_username'] = telegram_name
             self.users[user_id]['telegram_id'] = telegram_id
             write_to_json(self.users, './users.json')
+        return
+
+    def delete_user(self, user_id, update, context):
+        if user_id in self.users:
+            del self.users[user_id]
+            write_to_json(self.users, './users.json')
+        return
 
     def start_dialogue(self, update, context):
         """
