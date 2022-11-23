@@ -12,6 +12,7 @@ tg_bot.run_bot()
 disc_bot.run_bot()
 
 # TODO: implement Telegram frontend (button menu for data entry)
+# TODO: function for users to delete their data!
 # TODO: Prompt for discord handle, guild/channel to listen to
 # TODO: Move data from local json to cloud (MongoDB)
 # TODO: Switch off logging before bot is 'released'
