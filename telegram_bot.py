@@ -107,7 +107,8 @@ class TelegramBot:
                     "select Discord /guild to listen to\n" + \
                     "select Discord /channels to listen to\n\n" + \
                     "/pause Discord alerts\n" + \
-                    "/continue Discord alerts\n"
+                    "/resume Discord alerts\n" + \
+                    "/delete my data\n"
 
         context.bot.send_message(
             chat_id=update.message.chat_id,
@@ -136,6 +137,15 @@ class TelegramBot:
             text=parsed_msg,
             parse_mode='MarkdownV2'
             )
+
+    def setup_bot(self, update, context):
+        """
+        Setup wizard that's called if a user is not in the db yet.
+        """
+        # only logic & top level here, calls of other functions
+        # calls promts for discord handle, discord guild [, roles]
+        # saves information to users.json
+        pass
 
     def add_user(self, user_id, update, context):
         if user_id not in self.users:
@@ -168,6 +178,9 @@ class TelegramBot:
         """
         )
 
+        # Check if user exists yet.
+        # if not, run setup_bot(update, context)
+
         user_id = update.message.chat_id
         self.add_user(user_id, update, context)
 
@@ -178,6 +191,8 @@ class TelegramBot:
             )
 
         self.add_channel(update, context)
+
+
 
     def add_discord_handle(self, update, context):
         user_id = update.message.chat_id
