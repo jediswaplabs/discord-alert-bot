@@ -9,6 +9,8 @@ import json
 def read_from_json(json_path):
     with open(json_path, 'r') as jfile:
         data = json.load(jfile)
+        # convert json str keys to int
+        data = {int(k):v for k,v in data.items()}
         return data
 
 def write_to_json(_dict, path):
