@@ -2,9 +2,11 @@
 This file contains contains helper functions callable by any of the 2 bots.
 '''
 
+import os, json
 
-import json
-#func_name = inspect.currentframe().f_code.co_name
+def create_if_not_found(_dict, path):
+    if not os.path.isfile(path):
+        write_to_json(_dict, path)
 
 def read_from_json(json_path):
     with open(json_path, 'r') as jfile:
