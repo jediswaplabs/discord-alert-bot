@@ -10,7 +10,7 @@ from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
 from urllib.error import HTTPError
 from dotenv import load_dotenv
 from inspect import cleandoc
-from helpers import read_from_json, write_to_json
+from helpers import read_from_json, write_to_json, create_if_not_found
 load_dotenv('./.env')
 
 class TelegramBot:
@@ -27,7 +27,9 @@ class TelegramBot:
         self.token = os.environ['TELEGRAM_BOT_TOKEN']
 
         # The single data file the bot is using
-        self.users = read_from_json('./users.json')
+        self.users_path = './users.json'
+        create_if_not_found({}, self.users_path)
+        self.users = read_from_json(self.users_path)
 
         # These will be checked against as substrings within each
         # message, so different variations are not required if their
@@ -108,6 +110,23 @@ class TelegramBot:
         # removes unwanted indentation and adds escape characters as in escape_d
         return cleandoc(msg.translate(msg.maketrans(escape_d)))
 
+    def start_dialogue(self, update, context):
+        """
+        Initiates the dialogue that appears when the bot is called by a user
+        for the first time.
+        """
+
+        welcome_msg = """
+        Welcome!
+        This bot notifies you if your discord handle has been mentioned in a
+        selection of Discord channels of your choosing.
+        You can always get to the bot menu by typing /menu.
+        """
+        # Check if user exists already.
+        # if not, run setup_bot(update, context)
+        self.send_msg(welcome_msg, update, context)
+        self.setup_bot(update, context)
+
     def show_menu(self, update, context):
         """
         Shows the menu with current items.
@@ -128,7 +147,7 @@ class TelegramBot:
 
     def send_msg(self, msg, update, context):
         """
-        Sends a text message
+        Sends a text message.
         """
         parsed_msg = self.parse_msg(msg)
         context.bot.send_message(
@@ -140,7 +159,7 @@ class TelegramBot:
 
     def under_construction_msg(self, update, context):
         """
-        Sends a text message
+        Sends a placeholder message.
         """
         msg = '🚧 '*8+'\n\n\t_*...under construction...*_\n\n'+'🚧 '*8
         parsed_msg = self.parse_msg(msg)
@@ -153,7 +172,7 @@ class TelegramBot:
 
     def send_to_user_id(self, user_id, msg):
         """
-        Sends a text message to a Telegram Chat ID
+        Sends a text message to a Telegram Chat ID.
         """
         parsed_msg = self.parse_msg(msg)
         context.bot.send_message(
@@ -165,18 +184,17 @@ class TelegramBot:
 
     def setup_bot(self, update, context):
         """
-        Setup wizard that's called if a user is not in the db yet.
+        Expandable wrapper to call functions that play a role in getting
+        all necessary user information for the bot to work.
         """
-        user_id = update.message.chat_id
         # check if user is already in dataset, set up if not
         self.add_user(update, context)
 
-        # only logic & top level here, calls of other functions
+        # only top level here, calls of other functions
         # calls promts for discord handle, discord guild [, roles]
-        # saves information to users.json
 
         # make new data available for Discord bot
-        #self.discord_bot.refresh_data()
+        self.refresh_discord_bot()
         return
 
     def set_guild(self, update, context):
@@ -186,27 +204,6 @@ class TelegramBot:
         user_id = update.message.chat_id
         self.under_construction_msg(update, context)
         return
-
-    def start_dialogue(self, update, context):
-        """
-        Initiates the dialogue that appears when the bot is called by a user
-        for the first time.
-        """
-
-        welcome_msg = """
-        Welcome!
-        This bot notifies you if your discord handle has been mentioned in a
-        selection of Discord channels of your choosing.
-        You can always get to the bot menu by typing /menu.
-        """
-
-        # Check if user exists already.
-        # if not, run setup_bot(update, context)
-
-        user_id = update.message.chat_id
-        self.add_user(update, context)
-        self.send_msg(welcome_msg, update, context)
-        self.add_channel(update, context)
 
     def edit_discord_handle(self, update, context):
         user_id = update.message.chat_id
@@ -255,15 +252,17 @@ class TelegramBot:
 
         # if user not in users.json yet: Create entry
         else:
+            msg = f"Didn't find TG id {user_id} in database."
+            self.send_msg(msg, update, context)
             user_dict = {
-            'telegram_username': telegram_name,
-            'telegram_id': user_id,
-            'alerts_active': True
-            }
+                'telegram_username': telegram_name,
+                'telegram_id': user_id,
+                'alerts_active': True
+                }
             self.users[user_id] = user_dict
-            write_to_json(self.users, './users.json')
-            self.refresh_data()
-            edit_discord_handle(update, context)    # prompt for Discord handle
+            write_to_json(self.users, self.users_path)
+            self.refresh_discord_bot()
+            self.edit_discord_handle(update, context)    # prompt for Discord handle
             return
 
     def add_channels(self, update, context):
@@ -294,9 +293,14 @@ class TelegramBot:
     def pause_alerts(self, update, context):
         """
         Deactivates Discord notification forwarding for this user.
+
         """
         user_id = update.message.chat_id
-        self.under_construction_msg(update, context)
+        self.users[user_id]['alerts_active'] = False
+        write_to_json(self.users, self.users_path)
+        self.refresh_discord_bot()
+        msg = 'Bot paused. Tap /resume to reactivate notifications.'
+        self.send_msg(msg, update, context)
         return
 
     def resume_alerts(self, update, context):
@@ -304,7 +308,13 @@ class TelegramBot:
         Reactivates Discord notification forwarding for this user.
         """
         user_id = update.message.chat_id
-        self.under_construction_msg(update, context)
+        self.users[user_id]['alerts_active'] = True
+        write_to_json(self.users, self.users_path)
+        self.refresh_discord_bot()
+        msg ="""
+        Mentions on Discord will now be forwarded again!
+        """
+        self.send_msg(msg, update, context)
         return
 
     def delete_user(self, update, context):
@@ -312,9 +322,9 @@ class TelegramBot:
 
         if user_id in self.users:
             del self.users[user_id]
-            write_to_json(self.users, './users.json')
+            write_to_json(self.users, self.users_path)
             msg = 'All data wiped!'
-            self.send_msg(update, context)
+            self.send_msg(msg, update, context)
             self.refresh_discord_bot()
 
         else:
@@ -324,10 +334,12 @@ class TelegramBot:
 
     def show_donate(self, update, context):
         """
-        Reactivates Discord notification forwarding for this user.
+        Show ETH donation addy.
         """
-        user_id = update.message.chat_id
-        self.under_construction_msg(update, context)
+        msg = "Support the bot's development.\nDonate on Ethereum or any L2:"
+        addy = "*0xD76beaffab0be32D0Cef2d0fE81e92C2ae7F55e9*"
+        self.send_msg(msg, update, context)
+        self.send_msg(addy, update, context)
         return
 
     def refresh_discord_bot(self):
