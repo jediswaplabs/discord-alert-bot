@@ -1,13 +1,13 @@
 # Discord Alert Bot
 A Telegram bot that notifies you when your handle is mentioned in a specific Discord server
 
-To run, look for 'discord-alert-bot' on Telegram and start a conversation with it.
+To run, add the bot _Telegram Alerts_ to the **Discord** server you want to get notifications for.
+It only needs permissions read messages and see server members.
+
+On **Telegram**, look for _@DiscordAlertsBot_ and start a conversation with it.
 It will prompt for your Discord handle and the Discord server you want to use it in.
 Once the information is entered, it will forward you each message you have been mentioned
 in for this server.
-
-A requirement on the Discord side of things is that the Discord bot 'Telegram Alerts' is added
-to the server with permissions to read messages.
 
 ## Requirements & Installation
 
