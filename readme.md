@@ -1,6 +1,6 @@
 # Discord Alert Bot
 
-![Preview](ttps://github.com/jediswaplabs/discord-alert-bot/blob/main/example.png)
+![Preview](https://github.com/jediswaplabs/discord-alert-bot/blob/main/example.png)
 
 
 A Telegram bot that notifies you when your handle is mentioned in a specific Discord server
