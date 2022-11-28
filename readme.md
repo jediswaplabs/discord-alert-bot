@@ -1,4 +1,4 @@
-# Discord Alert Bot
+# Discord Alerts Bot
 
 ![Preview](https://github.com/jediswaplabs/discord-alert-bot/blob/main/example.png)
 
