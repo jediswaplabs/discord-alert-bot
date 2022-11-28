@@ -6,7 +6,9 @@ Initial bot framework taken from Andrés Ignacio Torres <andresitorresm@gmail.co
 '''
 
 import os, logging, random
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CommandHandler, Filters, MessageHandler, Updater
+from telegram.ext import CallbackQueryHandler
 from urllib.error import HTTPError
 from dotenv import load_dotenv
 from inspect import cleandoc
@@ -48,6 +50,14 @@ class TelegramBot:
             '/donate': self.show_donate,
             }
 
+        # Logic that ties button names to self.users dictionary keys for data entry
+        self.button_map = {
+            'enter Discord username': 'discord_username'
+            }
+
+        # To be set to a self.users key if user data is expected in next message
+        self.save_to_users = False
+
         # Discord bot instance (set from outside this scope)
         self.discord_bot = None
 
@@ -74,8 +84,10 @@ class TelegramBot:
         # Declares and adds handlers for commands that shows help info
         start_handler = CommandHandler('start', self.start_dialogue)
         help_handler = CommandHandler('help', self.show_menu)
+        callback_handler = CallbackQueryHandler(self.button_logic)
         self.dispatcher.add_handler(start_handler)
         self.dispatcher.add_handler(help_handler)
+        self.dispatcher.add_handler(callback_handler)
 
         # Declares and adds a handler for text messages that will reply with
         # a response if the message includes a trigger word
@@ -90,6 +102,60 @@ class TelegramBot:
         To be called from outside this scope.
         """
         self.discord_bot = bot
+
+    def button_logic(self, update, context):
+        """
+        Central point for all logic for pressed buttons.
+        Parses the CallbackQuery and updates the message text.
+        """
+        query = update.callback_query
+        choice = query.data
+
+        # CallbackQueries need to be answered, even if no notification to the user is needed
+        # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
+        query.answer()
+        if query.data != 'back':
+            query.edit_message_text(text=f"Please {query.data}:")
+
+        # Possibility: Button 'back' pressed -> lead to menu at all times
+        if choice == 'back':
+            self.show_menu(update, context)
+            self.save_to_users = False
+
+        # Ignore any command handled by handle_texte_massages() already
+        elif choice in self.command_map:
+            self.save_to_users = False
+            return
+
+        # Possibility: Other button -> set self.users key as self.save_to_users flag
+        else:
+            # retrieve correct database key for option chosen by user
+            self.save_to_users = self.button_map[choice]
+
+
+
+    def button_choice(self, msg, choices, update, context):
+        """
+        Takes a message & list of button names (buttons).
+        Adds option 'back' if not included in list.
+        Sends a message to the user with inline buttons attached.
+        """
+        def keyb_from_choices(button_names):
+            """Returns InlineKeyboardMarkup object from list of choices."""
+            keyboard = []
+            if 'back' not in button_names: button_names.append('back')
+
+            for button_name in button_names:
+                b = InlineKeyboardButton(button_name, callback_data=button_name)
+                keyboard.append(b)
+
+            return InlineKeyboardMarkup([keyboard])
+
+        reply_markup = keyb_from_choices(choices)
+        msg = self.parse_msg(msg)
+        update.message.reply_text(msg, reply_markup=reply_markup, parse_mode='MarkdownV2')
+
+        return
 
     def parse_msg(self, msg):
         """
@@ -149,9 +215,16 @@ class TelegramBot:
         """
         Sends a text message.
         """
+
+        # Prevent AttributeError for callback_query type updates
+        if update.callback_query:
+            chat_id = update.callback_query.message.chat.id
+        else:
+            chat_id = update.message.chat_id
+
         parsed_msg = self.parse_msg(msg)
         context.bot.send_message(
-            chat_id=update.message.chat_id,
+            chat_id=chat_id,
             text=parsed_msg,
             disable_web_page_preview=True,
             parse_mode='MarkdownV2'
@@ -223,9 +296,14 @@ class TelegramBot:
 
         add_handle_msg = f"""
         Please enter your Discord username (i.e. {rand_user}).
-        You can find it by tapping your avatar or in _*settings*_ -> _*my account*_ -> _*username*_.
+        You can find it by tapping your avatar or in _*settings -> my account -> username*_.
         """
-        self.send_msg(add_handle_msg, update, context)
+
+        # create button menu & setup text handler to store user information
+        self.save_to_users = 'discord_username'
+        buttons = ['enter Discord username']
+        self.button_choice(add_handle_msg, buttons, update, context)
+
         return
 
     def add_user(self, update, context):
@@ -326,10 +404,12 @@ class TelegramBot:
             msg = 'All data wiped!'
             self.send_msg(msg, update, context)
             self.refresh_discord_bot()
+            self.start_dialogue(update, context)
 
         else:
             msg = 'User data has already been deleted previously.'
             self.send_msg(msg, update, context)
+
         return
 
     def show_donate(self, update, context):
@@ -364,6 +444,19 @@ class TelegramBot:
             chat_user_client = update.message.chat_id
             logging.info(f'{chat_user_client} interacted with the bot.')
 
+        # Check if user data from prompt is expected
+        if (self.save_to_users != False) and (hasattr(update, 'callback_query')):
+            # Add user data to appropriate key in self.users
+            user_id = update.message.chat_id
+            k = self.save_to_users
+            v = update.message.text
+            self.users[user_id][k] = v
+            self.save_to_users = False
+            write_to_json(self.users, self.users_path)
+            self.refresh_discord_bot()
+            success_msg = f'Success! Discord bot updated with data: {v}\n Show /menu'
+            self.send_msg(success_msg, update, context)
+
         # Possibility: received command from menu_trigger
         for Trigger in self.menu_trigger:
             for word in words:
@@ -377,6 +470,7 @@ class TelegramBot:
             # Run function for command as specified in self.command_map
             if word in self.command_map:
                 self.command_map[word](update, context)
+
 
 def main():
     """
