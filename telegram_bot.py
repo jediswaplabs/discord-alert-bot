@@ -324,14 +324,15 @@ class TelegramBot:
                 Discord bot already set up for {telegram_name}!
                 Specified Discord username: {discord_handle}!
                 Tap /username to change it.
+                Tap /delete to wipe your data altogetherSucce.
                 """
                 self.send_msg(msg, update, context)
                 return
 
         # if user not in users.json yet: Create entry
         else:
-            msg = f"Didn't find TG id {user_id} in database."
-            self.send_msg(msg, update, context)
+            #msg = f"Didn't find TG id {user_id} in database."
+            #self.send_msg(msg, update, context)
             user_dict = {
                 'telegram_username': telegram_name,
                 'telegram_id': user_id,
@@ -401,10 +402,9 @@ class TelegramBot:
         if user_id in self.users:
             del self.users[user_id]
             write_to_json(self.users, self.users_path)
-            msg = 'All data wiped!'
+            msg = 'All data wiped! Tap /start to start over!'
             self.send_msg(msg, update, context)
             self.refresh_discord_bot()
-            self.start_dialogue(update, context)
 
         else:
             msg = 'User data has already been deleted previously.'
@@ -446,16 +446,20 @@ class TelegramBot:
 
         # Check if user data from prompt is expected
         if (self.save_to_users != False) and (hasattr(update, 'callback_query')):
-            # Add user data to appropriate key in self.users
-            user_id = update.message.chat_id
-            k = self.save_to_users
-            v = update.message.text
-            self.users[user_id][k] = v
-            self.save_to_users = False
-            write_to_json(self.users, self.users_path)
-            self.refresh_discord_bot()
-            success_msg = f'Success! Discord bot updated with data: {v}\n Show /menu'
-            self.send_msg(success_msg, update, context)
+            if self.save_to_users not in self.command_map:
+                # Add user data to appropriate key in self.users
+                user_id = update.message.chat_id
+                k = self.save_to_users
+                v = update.message.text
+                self.users[user_id][k] = v
+                self.save_to_users = False
+                write_to_json(self.users, self.users_path)
+                self.refresh_discord_bot()
+                success_msg = f'Success! Discord bot updated with data: {v}\n Show /menu'
+                self.send_msg(success_msg, update, context)
+            else:
+                # Reset flag if known other command detected
+                self.save_to_users = False
 
         # Possibility: received command from menu_trigger
         for Trigger in self.menu_trigger:
