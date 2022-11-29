@@ -21,39 +21,42 @@ class DiscordBot:
         TELEGRAM_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
         self.telegram_bot = Bot(TELEGRAM_TOKEN)
         #self.telegram_bot = TelegramBot()
-        # set of Discord usernames that the Discord bot is listening to currently
-        self.listening_to = set()
+        # set of Discord usernames & roles that the Discord bot is listening to
+        self.listening_to = {'handles': set(), 'roles': set()}
         # dictionary {discord username: telegram id}
-        self.discord_telegram_map = dict()
+        self.discord_telegram_map = {'handles': {}, 'roles': {}}
         # dictionary {telegram id: {data}}
         self.users = dict()
         # path to database
         self.users_path = './users.json'
+        self.debug_code = int(os.getenv('DEBUG'))
+        self.client = None
 
     def refresh_data(self):
         '''
-        Populates/updates listening_to, discord_telegram_map & users.
+        Populates/updates users, listening_to, discord_telegram_map.
         '''
         self.users = read_from_json(self.users_path)
 
-        # update set of notification triggers where available
+        # update sets of notification triggers where available
         for v in self.users.values():
-            try:
-                self.listening_to.add(v['discord_username'])
-            except KeyError:
-                continue
-
-        # update Discord->Telegram lookup
-        for v in self.users.values():
-            # skip if no discord_username set yet for this user
+            [self.listening_to['roles'].add(x) for x in v['roles']]
             try:
                 discord_handle = v['discord_username']
             except KeyError:
                 continue
-            # create set of all telegram ids requesting notifications for this handle
-            if discord_handle not in self.discord_telegram_map:
-                self.discord_telegram_map[discord_handle] = set()
-            self.discord_telegram_map[discord_handle].add(v['telegram_id'])
+            self.listening_to['handles'].add(discord_handle)
+
+            # create set of all TG ids requesting notifications for this handle
+            if discord_handle not in self.discord_telegram_map['handles']:
+                self.discord_telegram_map['handles'][discord_handle] = set()
+            self.discord_telegram_map['handles'][discord_handle].add(v['telegram_id'])
+
+            # create set of all TG ids requesting notifications for each role
+            for role in v['roles']:
+                if role not in self.discord_telegram_map['roles']:
+                    self.discord_telegram_map['roles'][role] = set()
+                self.discord_telegram_map['roles'][role].add(v['telegram_id'])
 
         print('Data updated!')
 
@@ -77,11 +80,21 @@ class DiscordBot:
         for telegram_id in telegram_ids:
             self.send_to_TG(telegram_id, msg)
 
+    def get_roles(self, discord_username, guild_id=1031616432049496225):
+        '''
+        Takes a Discord username, returns all roles set for user in current guild.
+        '''
+        #user = client.fetch_user(user_id)
+        guild = self.client.get_guild(guild_id)
+        user = guild.get_member_named(discord_username)
+        roles = [role.name for role in user.roles]
+        print(f'\n\n\nDEBUG DISCORD: Got these roles: {roles}')
+        return roles
+
     def run_bot(self):
         '''
         Actual logic of the bot is stored here.
         '''
-
         # update data to listen to at startup
         self.refresh_data()
 
@@ -89,27 +102,35 @@ class DiscordBot:
         intents = discord.Intents.default()
         intents.members = True
         intents.message_content = True
-        client = discord.Client(intents=intents)
+        self.client = discord.Client(intents=intents)
+        client = self.client
 
         # actions taken at startup
         @client.event
         async def on_ready():
+            all_handles = self.listening_to['handles']
+            all_roles = self.listening_to['roles']
+            mentions_update = f"""
+            Notifications active for mentions of {all_handles} and {all_roles}.
+            """
             print(f'{client.user.name} has connected to Discord!')
-            print(f'Discord bot is now listening for mentions of {self.listening_to}')
             msg = 'Discord bot is up & running!'
             self.send_to_all(msg)
+            self.send_to_TG(self.debug_code, mentions_update)
 
         # actions taken on every new Discord message
         @client.event
         async def on_message(message):
 
-            # forward mention to each TG user as in the Discord->Telegram lookup
-            for username in self.listening_to:
+            # handle mentions: forward to TG as in the Discord->Telegram lookup
+            for username in self.listening_to['handles']:
                 user = message.guild.get_member_named(username)
 
                 if user in message.mentions:
-                    telegram_ids = self.discord_telegram_map[username]
+                    telegram_ids = self.discord_telegram_map['handles'][username]
+
                     for telegram_id in telegram_ids:
+
                         if self.users[telegram_id]['alerts_active']:
                             author = message.author
                             guild_name = message.guild.name
@@ -122,7 +143,26 @@ class DiscordBot:
                             out_msg = header+link
                             self.send_to_TG(telegram_id, out_msg)
 
-            # TODO: Have bot also check for mentioned roles
+            # role mentions: forward to TG as in the Discord->Telegram lookup
+            for role in self.listening_to['roles']:
+                # probably some getter for role is needed for equality of objects
+                if role in message.mentions:
+                    telegram_ids = self.discord_telegram_map['roles'][role]
+                    author = message.author
+                    guild_name = message.guild.name
+                    alias = user.display_name
+                    url = message.jump_url
+                    contents = '@'+alias+message.content[message.content.find('>')+1:]
+                    header = f"Message to {role} in {guild_name}:\n\n"
+                    link = '['+contents+']'+'('+url+')'
+                    out_msg = header+link
+                    print(f'\n{author} mentioned {role}:')
+
+                    for telegram_id in telegram_ids:
+                        if self.users[telegram_id]['alerts_active']:
+                            self.send_to_TG(telegram_id, out_msg)
+
+            # DONE: Have bot also check for mentioned roles
             # TODO: Have bot listen to specified subset of channels only
             # TODO: Check behavior with multiple bot instances open at once
             # TODO: Check behavior with bot on multiple servers simultaneously
