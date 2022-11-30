@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 '''
 This file contains the Telegram bot used as frontend and for user data entry.
-Initial bot framework taken from Andrés Ignacio Torres <andresitorresm@gmail.com>.
+Handlers & __init__ taken from Andrés Ignacio Torres <andresitorresm@gmail.com>.
 '''
 
 import os, logging, random
@@ -42,17 +42,23 @@ class TelegramBot:
         self.command_map = {
             '/setup': self.setup_bot,
             '/username': self.edit_discord_handle,
+            '/roles': self.edit_roles,
             '/guild': self.set_guild,
             '/channels': self.add_channels,
             '/pause': self.pause_alerts,
             '/resume': self.resume_alerts,
             '/delete': self.delete_user,
             '/donate': self.show_donate,
+            'add role': self.add_roles,
+            'remove role': self.remove_roles
             }
 
         # Logic that ties button names to self.users dictionary keys for data entry
+        # key words like 'append' and 'remove' are prefixed for list/set types
         self.button_map = {
-            'enter Discord username': 'discord_username'
+            'enter Discord username': 'discord_username',
+            'add role': 'append roles',
+            'remove role': 'remove roles',
             }
 
         # To be set to a self.users key if user data is expected in next message
@@ -76,23 +82,19 @@ class TelegramBot:
         Sets up the required bot handlers and starts the polling
         thread in order to successfully reply to messages.
         """
-
         # Instantiates the bot updater
         self.updater = Updater(self.token, use_context=True)
         self.dispatcher = self.updater.dispatcher
 
-        # Declares and adds handlers for commands that shows help info
+        # Declares and adds handlers for commands & callbacks (button presses)
         start_handler = CommandHandler('start', self.start_dialogue)
         help_handler = CommandHandler('help', self.show_menu)
+        text_handler = MessageHandler(Filters.text, self.handle_text_messages)
         callback_handler = CallbackQueryHandler(self.button_logic)
         self.dispatcher.add_handler(start_handler)
         self.dispatcher.add_handler(help_handler)
-        self.dispatcher.add_handler(callback_handler)
-
-        # Declares and adds a handler for text messages that will reply with
-        # a response if the message includes a trigger word
-        text_handler = MessageHandler(Filters.text, self.handle_text_messages)
         self.dispatcher.add_handler(text_handler)
+        self.dispatcher.add_handler(callback_handler)
 
         # Fires up the polling thread. We're live!
         self.updater.start_polling()
@@ -114,24 +116,36 @@ class TelegramBot:
         # CallbackQueries need to be answered, even if no notification to the user is needed
         # Some clients may have trouble otherwise. See https://core.telegram.org/bots/api#callbackquery
         query.answer()
-        if query.data != 'back':
-            query.edit_message_text(text=f"Please {query.data}:")
 
-        # Possibility: Button 'back' pressed -> lead to menu at all times
+        # Optional: Change query text if certain buttons are pressed
+        text_map = {
+            'enter Discord username': 'Please enter your Discord username:',
+            }
+        if query.data != 'back' and query.data in text_map:
+            query.edit_message_text(text=text_map[query.data])
+
+        # Possibility: Button 'back' pressed -> leads to menu at all times
         if choice == 'back':
             self.show_menu(update, context)
             self.save_to_users = False
 
-        # Ignore any command handled by handle_texte_massages() already
+        # If command tied to a function in command_map -> run it
         elif choice in self.command_map:
             self.save_to_users = False
-            return
+            self.command_map[choice](update, context)
 
         # Possibility: Other button -> set self.users key as self.save_to_users flag
         else:
             # retrieve correct database key for option chosen by user
             self.save_to_users = self.button_map[choice]
 
+        return
+
+        # Possibility: Button command in callback query -> run through command_map
+        #if self.save_to_users == False and update['callback_query']:
+        #    button_text = update['callback_query']['data']
+        #    if button_text in self.command_map:
+        #        self.command_map[button_text](update, context)
 
 
     def button_choice(self, msg, choices, update, context):
@@ -143,7 +157,7 @@ class TelegramBot:
         def keyb_from_choices(button_names):
             """Returns InlineKeyboardMarkup object from list of choices."""
             keyboard = []
-            if 'back' not in button_names: button_names.append('back')
+            if 'back' not in button_names: button_names.insert(0, 'back')
 
             for button_name in button_names:
                 b = InlineKeyboardButton(button_name, callback_data=button_name)
@@ -197,12 +211,12 @@ class TelegramBot:
         """
         Shows the menu with current items.
         """
-
         MENU_MSG = "*Bot Commands*\n\n" + \
                     "/setup bot step by step\n" + \
                     "show bot /menu\n" + \
                     "edit Discord /username to get notified for\n" + \
                     "edit the Discord /guild the bot is active for\n" + \
+                    "edit Discord /roles to recieve notifications for\n" + \
                     "specify certain Discord /channels only within guild\n\n" + \
                     "/pause all Discord alerts\n" + \
                     "/resume all Discord alerts\n" + \
@@ -306,6 +320,77 @@ class TelegramBot:
 
         return
 
+    def edit_roles(self, update, context):
+        user_id = update.message.chat_id
+        users = self.users
+
+        # add new database entry if user is not known yet
+        keys = ['telegram_username', 'telegram_id', 'alerts_active']
+        if user_id in users:
+            if not all(key in users[user_id] for key in keys):
+                self.add_user(update, context)
+                return
+
+        roles_active = users[user_id]['roles']
+        print(f'\n\n\nROLES ACTIVE: {roles_active}\n\n\n')
+
+        if roles_active == []:
+            roles_msg = """
+            Currently your're not getting notifications for any roles.
+            Please choose:"""
+            buttons = ['add role']
+        else:
+            roles_msg = f'These roles are active for notifications right now: {roles_active}'
+            buttons = ['add role', 'remove role']
+
+        self.button_choice(roles_msg, buttons, update, context)
+        return
+
+    def add_roles(self, update, context):
+        # gets called by text_handler forever as long as save_to_users == 'append roles'
+        # New button choice here with new msg
+        if update.message == None:
+            user_id = update.callback_query.message.chat.id
+        else:
+            user_id = update.message.chat_id
+        users = self.users
+
+        # Abort if no Discord username set
+        try:
+            discord_handle = users[user_id]['discord_username']
+        except KeyError:
+            msg = 'Please enter a Discord /username first!'
+            self.send_msg(msg, update, context)
+            return
+
+        roles_available = self.discord_bot.get_roles(discord_handle)
+        print(f'\n\n\nQueried roles:{roles_available}\n\n\n')
+        self.send_msg(f'Queried roles: {roles_available}', update, context)
+        roles_active = users[user_id]['roles']
+
+        # Possibility: User has no roles
+        if roles_available == []:
+            roles_msg = f"""
+            Couldn't find any roles for Discord user {discord_handle}.\n
+            Go back to /roles or /menu"""
+
+        # If roles available, show button menu to choose notifications from
+        else:
+            # make sure roles are strings here!
+            roles_to_show = list(set(roles_available) - set(roles_active))
+            roles_to_show = ['append '+role for role in roles_to_show]
+            msg = 'Please choose all roles you want to receive notifications for:'
+            self.button_choice(msg, roles_to_show, update, context)
+            # inline keyboard , a button for each role that user has minus these already listened to
+	        # stays until back or ok is clicked
+        return
+
+
+
+
+    def remove_roles(self, update, context):
+        pass
+
     def add_user(self, update, context):
         """
         Sets up user entry in database if not existing. Calls edit_discord_handle()
@@ -324,19 +409,18 @@ class TelegramBot:
                 Discord bot already set up for {telegram_name}!
                 Specified Discord username: {discord_handle}!
                 Tap /username to change it.
-                Tap /delete to wipe your data altogetherSucce.
+                Tap /delete to wipe your data altogether.
                 """
                 self.send_msg(msg, update, context)
                 return
 
         # if user not in users.json yet: Create entry
         else:
-            #msg = f"Didn't find TG id {user_id} in database."
-            #self.send_msg(msg, update, context)
             user_dict = {
                 'telegram_username': telegram_name,
                 'telegram_id': user_id,
-                'alerts_active': True
+                'alerts_active': True,
+                'roles': []
                 }
             self.users[user_id] = user_dict
             write_to_json(self.users, self.users_path)
@@ -425,7 +509,7 @@ class TelegramBot:
     def refresh_discord_bot(self):
         """
         Needs to be called after every change to 'users.json' for the
-        changes to take effect on the Discord side of things.
+        changes to take effect on the Discord bot side.
         """
         self.discord_bot.refresh_data()
 
@@ -434,7 +518,8 @@ class TelegramBot:
         Checks if a message comes from a group. If that is not the case,
         or if the message includes a trigger word, replies with merch.
         """
-        words = set(update.message.text.lower().split())
+        text = update.message.text
+        words = set(text.lower().split())
         logging.debug(f'Received message: {update.message.text}')
         logging.debug(f'Splitted words: {", ".join(words)}')
 
@@ -443,22 +528,41 @@ class TelegramBot:
         if chat_user_client == None:
             chat_user_client = update.message.chat_id
             logging.info(f'{chat_user_client} interacted with the bot.')
+        print(f'\n\nsave_to_users: {self.save_to_users}\n\n')
 
-        # Check if user data from prompt is expected
-        if (self.save_to_users != False) and (hasattr(update, 'callback_query')):
-            if self.save_to_users not in self.command_map:
+        # Check if user data from prompt (buttons) is expected
+        if self.save_to_users != False and update['callback_query']:
+            user_id = update.message.chat_id
+
+            # If 'append' keyword in save_to_users: Append, don't overwrite
+            if self.save_to_users.startswith('append'):
+                k = self.save_to_users.split(maxsplit=1)[1]
+                v = update.message.text
+                self.users[user_id][k].append(v)
+                write_to_json(self.users, self.users_path)
+                self.refresh_discord_bot()
+
+                # If adding a role: Bring back button menu (for further adding)
+                if self.save_to_users == 'append roles':
+                    self.save_to_users = False
+                    self.add_roles(update, context)
+                else:
+                    self.save_to_users = False
+
+            # Overwrite data in users.json if no 'append' keyword found
+            elif self.save_to_users not in self.command_map:
                 # Add user data to appropriate key in self.users
-                user_id = update.message.chat_id
                 k = self.save_to_users
                 v = update.message.text
                 self.users[user_id][k] = v
                 self.save_to_users = False
                 write_to_json(self.users, self.users_path)
                 self.refresh_discord_bot()
-                success_msg = f'Success! Discord bot updated with data: {v}\n Show /menu'
+                success_msg = f'Success! Discord bot updated with data: {v}\n\nShow /menu'
                 self.send_msg(success_msg, update, context)
+
+            # Reset flag if known other command detected
             else:
-                # Reset flag if known other command detected
                 self.save_to_users = False
 
         # Possibility: received command from menu_trigger
@@ -473,8 +577,8 @@ class TelegramBot:
 
             # Run function for command as specified in self.command_map
             if word in self.command_map:
+                print('\n\nHanding over to command map!\n\n')
                 self.command_map[word](update, context)
-
 
 def main():
     """

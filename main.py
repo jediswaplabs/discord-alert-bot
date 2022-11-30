@@ -13,11 +13,10 @@ tg_bot.set_discord_instance(disc_bot)
 disc_bot.run_bot()
 
 
-# TODO: add botpic, about info, description
-# TODO: implement Telegram frontend (button menu for data entry)
+# DONE: add botpic, about info, description
+# DONE: implement Telegram frontend (button menu for data entry)
 # DONE: function for users to delete their data!
 # DONE: Prompt for discord handle, guild/channel to listen to
-# TODO: Move data from local json to cloud (MongoDB)
 # TODO: Switch off logging before bot is 'released'
 # TODO: Implement some way to assert that bot is not offline
-#       (i.e. call some bot function every 5 minutes & check if it replies)
+#       (i.e. call some bot function every 5 minutes & check for a reply)
