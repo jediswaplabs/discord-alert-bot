@@ -54,7 +54,7 @@ class TelegramBot:
             }
 
         # Logic that ties button names to self.users dictionary keys for data entry
-        # key words like 'append' and 'remove' are added for list/set types
+        # key words like 'append' and 'remove' are prefixed for list/set types
         self.button_map = {
             'enter Discord username': 'discord_username',
             'add role': 'append roles',
@@ -82,23 +82,19 @@ class TelegramBot:
         Sets up the required bot handlers and starts the polling
         thread in order to successfully reply to messages.
         """
-
         # Instantiates the bot updater
         self.updater = Updater(self.token, use_context=True)
         self.dispatcher = self.updater.dispatcher
 
-        # Declares and adds handlers for commands that shows help info
+        # Declares and adds handlers for commands & callbacks (button presses)
         start_handler = CommandHandler('start', self.start_dialogue)
         help_handler = CommandHandler('help', self.show_menu)
+        text_handler = MessageHandler(Filters.text, self.handle_text_messages)
         callback_handler = CallbackQueryHandler(self.button_logic)
         self.dispatcher.add_handler(start_handler)
         self.dispatcher.add_handler(help_handler)
-        self.dispatcher.add_handler(callback_handler)
-
-        # Declares and adds a handler for text messages that will reply with
-        # a response if the message includes a trigger word
-        text_handler = MessageHandler(Filters.text, self.handle_text_messages)
         self.dispatcher.add_handler(text_handler)
+        self.dispatcher.add_handler(callback_handler)
 
         # Fires up the polling thread. We're live!
         self.updater.start_polling()
@@ -128,14 +124,13 @@ class TelegramBot:
         if query.data != 'back' and query.data in text_map:
             query.edit_message_text(text=text_map[query.data])
 
-        # Possibility: Button 'back' pressed -> lead to menu at all times
+        # Possibility: Button 'back' pressed -> leads to menu at all times
         if choice == 'back':
             self.show_menu(update, context)
             self.save_to_users = False
 
         # If command tied to a function in command_map -> run it
         elif choice in self.command_map:
-            print('\n\nAAAAAAAAAAAAAAAA\n\n')
             self.save_to_users = False
             self.command_map[choice](update, context)
 
@@ -145,12 +140,11 @@ class TelegramBot:
             self.save_to_users = self.button_map[choice]
 
         return
+
         # Possibility: Button command in callback query -> run through command_map
         #if self.save_to_users == False and update['callback_query']:
-        #    print('\n\nENDED UP HERE!\n\n')
         #    button_text = update['callback_query']['data']
         #    if button_text in self.command_map:
-        #        print('\n\nDetected multi-word command! -> Checking command map!\n\n')
         #        self.command_map[button_text](update, context)
 
 
@@ -422,8 +416,6 @@ class TelegramBot:
 
         # if user not in users.json yet: Create entry
         else:
-            #msg = f"Didn't find TG id {user_id} in database."
-            #self.send_msg(msg, update, context)
             user_dict = {
                 'telegram_username': telegram_name,
                 'telegram_id': user_id,
@@ -538,14 +530,6 @@ class TelegramBot:
             logging.info(f'{chat_user_client} interacted with the bot.')
         print(f'\n\nsave_to_users: {self.save_to_users}\n\n')
 
-        # Possibility: Button command in callback query -> run through command_map
-        #if self.save_to_users == False and update['callback_query']:
-        #    print('\n\nENDED UP HERE!\n\n')
-        #    button_text = update['callback_query']['data']
-        #    if button_text in self.command_map:
-        #        print('\n\nDetected multi-word command! -> Checking command map!\n\n')
-        #        self.command_map[button_text](update, context)
-
         # Check if user data from prompt (buttons) is expected
         if self.save_to_users != False and update['callback_query']:
             user_id = update.message.chat_id
@@ -564,7 +548,6 @@ class TelegramBot:
                     self.add_roles(update, context)
                 else:
                     self.save_to_users = False
-
 
             # Overwrite data in users.json if no 'append' keyword found
             elif self.save_to_users not in self.command_map:
