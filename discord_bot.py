@@ -4,7 +4,7 @@ This file contains the discord bot to be called from within telegram_bot.py
 import os, discord
 from dotenv import load_dotenv
 from telegram import Bot
-from helpers import read_from_json
+from pandas import read_pickle
 load_dotenv()
 
 class DiscordBot:
@@ -28,7 +28,7 @@ class DiscordBot:
         # dictionary {telegram id: {data}}
         self.users = dict()
         # path to database
-        self.users_path = './users.json'
+        self.data_path = './data'
         self.debug_code = int(os.getenv('DEBUG'))
         self.client = None
 
@@ -36,7 +36,7 @@ class DiscordBot:
         '''
         Populates/updates users, listening_to, discord_telegram_map.
         '''
-        self.users = read_from_json(self.users_path)
+        self.users = read_pickle(self.data_path)['user_data']
 
         # update sets of notification triggers where available
         for v in self.users.values():
@@ -74,9 +74,9 @@ class DiscordBot:
 
     def send_to_all(self, msg):
         '''
-        Sends a message to all Telegram users in users.json.
+        Sends a message to all Telegram bot users.
         '''
-        telegram_ids = read_from_json(self.users_path).keys()
+        telegram_ids = read_pickle(self.data_path).keys()
         for telegram_id in telegram_ids:
             self.send_to_TG(telegram_id, msg)
 

@@ -4,6 +4,22 @@ This file contains contains helper functions callable by any of the 2 bots.
 
 import os, json
 
+
+
+def return_pretty(d):
+    """Custom string formatting for dictionaries"""
+    lines = []
+    for k,v in d.items():
+        lines.append(str("{:17} | {:<20}".format(k,str(v))))
+
+    #Add borders
+    _len = max((len(line)) for line in lines)
+    line = '='*_len
+    lines.insert(0, line), lines.append(line)
+    return lines
+
+
+
 def create_if_not_found(_dict, path):
     if not os.path.isfile(path):
         write_to_json(_dict, path)
