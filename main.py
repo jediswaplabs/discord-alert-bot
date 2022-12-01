@@ -10,7 +10,7 @@ disc_bot = DiscordBot()
 # initialize bots & insert Discord bot instance into TG bot
 tg_bot.run_bot()
 tg_bot.set_discord_instance(disc_bot)
-disc_bot.run_bot()
+#disc_bot.run_bot()
 
 
 # DONE: add botpic, about info, description
