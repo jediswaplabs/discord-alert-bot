@@ -1,17 +1,14 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 # pylint: disable=unused-argument, wrong-import-position
-# This program is dedicated to the public domain under the CC0 license.
-
 """
-First, a few callback functions are defined. Then, those functions are passed to
-the Application and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
+In this file, the TelegramBot class is defined.
+TelegramBot is used mainly for user data entry.
 
 Usage:
 Send /start to initiate the conversation. Press Ctrl-C on the command line
 to stop the bot.
 """
-
 import logging, os, random
 from typing import Dict
 from dotenv import load_dotenv
@@ -34,14 +31,14 @@ class TelegramBot:
     A class to encapsulate all relevant methods of the Telegram bot.
     """
 
-    def __init__(self):
+    def __init__(self, discord_bot_instance):
         """
         Constructor of the class. Initializes certain instance variables.
         """
         # The single data file the bot is using
         self.data_path = './data'
         # Discord bot instance (set from outside this scope)
-        self.discord_bot = None
+        self.discord_bot = discord_bot_instance
 
         # Enable logging
         logging.basicConfig(
@@ -60,8 +57,13 @@ class TelegramBot:
         self.markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
 
     def set_discord_instance(self, bot):
-        """To be called from outside this scope."""
+        """Setter if bot instance needs to be set from outside this scope."""
         self.discord_bot = bot
+
+    async def start_discord_bot(self):
+        """Starts Discord bot."""
+        await self.discord_bot.run_bot()
+        print("\n\nStarted Discord bot from within TG bot!\n\n") # Debug only
 
     def parse_str(self, user_data: Dict[str, str]) -> str:
         """Helper function for formatting the gathered user info."""
@@ -91,6 +93,9 @@ class TelegramBot:
     async def start(self, update, context) -> int:
         """Start the conversation, display any stored data and ask user for input."""
         reply_text = "Hello!\n"
+
+        await self.discord_bot.run_bot()
+
         if context.user_data:
             # Add 'guild', 'roles', 'channels' keys to user data
             await self.add_placeholders(update, context)
@@ -114,6 +119,8 @@ class TelegramBot:
 
     async def discord_handle(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
+        text = update.message.text.lower()
+        context.user_data["choice"] = text
 
         # Prompt for Discord handle
         rand_name = random.choice(['Tom', 'Anna', 'Mia', 'Max'])
@@ -134,8 +141,10 @@ class TelegramBot:
 
     async def discord_channels(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
+        # TODO
         text = update.message.text.lower()
         context.user_data["choice"] = text
+
         if context.user_data.get(text):
             reply_text = (
                 f"Your {text}? I already know the following about that: {context.user_data[text]}"
@@ -149,8 +158,10 @@ class TelegramBot:
 
     async def discord_roles(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
+        # TODO
         text = update.message.text.lower()
         context.user_data["choice"] = text
+
         if context.user_data.get(text):
             reply_text = (
                 f"Your {text}? I already know the following about that: {context.user_data[text]}"
@@ -164,8 +175,10 @@ class TelegramBot:
 
     async def discord_guild(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
+        # TODO
         text = update.message.text.lower()
         context.user_data["choice"] = text
+
         if context.user_data.get(text):
             reply_text = (
                 f"Your {text}? I already know the following about that: {context.user_data[text]}"
@@ -179,6 +192,9 @@ class TelegramBot:
 
     async def delete_my_data(self, update, context) -> int:
         """Deletes user entry from pickle file and context."""
+        text = update.message.text.lower()
+        context.user_data["choice"] = text
+
         chat_id = update.message.chat_id
         print('\n\n\n', 'user data requested:', context.user_data, '\n\n\n') # DEBUG
         if context.user_data == {}:
@@ -199,9 +215,15 @@ class TelegramBot:
     async def received_information(self, update, context) -> int:
         """Store info provided by user and ask for the next category."""
         text = update.message.text
-        # if coming from roles or channels. Ask if another should be added
+        category = context.user_data["choice"]
+        context.user_data[category] = text.lower()
+        del context.user_data["choice"]
 
+        # if coming from roles or channels. Ask if another should be added
+        print("\n\n I'm in fct received_information() now!") # Debug only
+        print("text ->", text)
         if "choice" in context.user_data:
+            print("choice ->", choice)
             category = context.user_data["choice"]
             context.user_data[category] = text.lower()
             del context.user_data["choice"]
@@ -212,6 +234,8 @@ class TelegramBot:
             "Hit /menu to edit.",
             reply_markup=self.markup,
         )
+        # Relay changes in data to Discord bot
+        self.discord_bot.refresh_data()
 
         return self.CHOOSING
 
@@ -243,6 +267,7 @@ class TelegramBot:
 
     def run_bot(self) -> None:
         """Run the bot."""
+
         # Create the Application and pass it your bot's token.
         config = PersistenceInput(
             bot_data=False,
@@ -301,8 +326,12 @@ class TelegramBot:
         show_data_handler = CommandHandler("show_data", self.show_data)
         application.add_handler(show_data_handler)
 
-        # Run the bot until the admin presses Ctrl-C
+        # Run Discord bot
+        #self.start_discord_bot()
+
+        # Run Telegram bot until the admin presses Ctrl-C
         application.run_polling()
+
 
 def main():
     """
@@ -310,9 +339,9 @@ def main():
     TelegramBot class and fires it up.
     """
 
-    telegram_bot = TelegramBot()
-    telegram_bot.run_bot()
-
+    #telegram_bot = TelegramBot()
+    #telegram_bot.run_bot()
+    pass
 # If the script is run directly, fires the main procedure
 if __name__ == "__main__":
     main()
