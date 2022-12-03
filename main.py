@@ -3,8 +3,8 @@
 """
 This script is running a Telegram bot and a Discord asynchronously within
 the same event loop. In general, the Telegram bot is used as a frontend to
-write user data to the db, while the Discord bot only reads data from there
-to update his notification triggers on Discord.
+write user data to the db, from which the Discord bot is only reading data
+to update notification triggers on Discord.
 """
 
 from telegram_bot import TelegramBot
