@@ -4,6 +4,7 @@
 This file contains the discord bot to be called from within telegram_bot.py.
 DiscordBot instantiates a second telegram bot for sending out the notifications.
 """
+
 import os, discord
 from dotenv import load_dotenv
 from telegram import Bot
@@ -30,7 +31,7 @@ class DiscordBot:
         self.users = dict()
         # Path to shared database (data entry via telegram_bot.py)
         self.data_path = "./data"
-        self.debug_code = int(os.getenv("DEBUG"))
+        self.debug_chat_id = int(os.getenv("DEBUG_TG_ID"))
         self.client = None
 
     def refresh_data(self):
@@ -90,6 +91,7 @@ class DiscordBot:
         """
         Takes a Discord username, returns all roles set for user in current guild.
         """
+        #TODO Pass guild_id arg along from TG bot
         #user = client.fetch_user(user_id)
         guild = self.client.get_guild(guild_id)
         user = guild.get_member_named(discord_username)
@@ -133,7 +135,7 @@ class DiscordBot:
             print(f"\n\n{client.user.name} has connected to Discord!\n\n")
             msg = "Discord bot is up & running!"
             await self.send_to_all(msg)
-            await self.send_to_TG(self.debug_code, mentions_update)
+            await self.send_to_TG(self.debug_chat_id, mentions_update)
 
         # Actions taken on every new Discord message
         @client.event

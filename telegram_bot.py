@@ -3,12 +3,11 @@
 # pylint: disable=unused-argument, wrong-import-position
 """
 In this file, the TelegramBot class is defined.
-TelegramBot is used mainly for user data entry.
-
 Usage:
-Send /start to initiate the conversation. Press Ctrl-C on the command line
-to stop the bot.
+Send /start to initiate the conversation on Telegram. Press Ctrl-C on the
+command line to stop the bot.
 """
+
 import logging, os, random
 from typing import Dict
 from dotenv import load_dotenv
@@ -61,9 +60,12 @@ class TelegramBot:
         self.discord_bot = bot
 
     async def start_discord_bot(self):
-        """Starts Discord bot."""
+        """
+        Starts Discord bot. This needs to be the final addition to the event loop
+        since anything after starting the Discord bot will only be run after
+        the Discord bot is closed.
+        """
         await self.discord_bot.run_bot()
-        print("\n\nStarted Discord bot from within TG bot!\n\n") # Debug only
 
     def parse_str(self, user_data: Dict[str, str]) -> str:
         """Helper function for formatting the gathered user info."""
@@ -93,8 +95,6 @@ class TelegramBot:
     async def start(self, update, context) -> int:
         """Start the conversation, display any stored data and ask user for input."""
         reply_text = "Hello!\n"
-
-        await self.discord_bot.run_bot()
 
         if context.user_data:
             # Add 'guild', 'roles', 'channels' keys to user data
@@ -265,9 +265,11 @@ class TelegramBot:
         """Needs to be called for changes to notification settings to take effect."""
         self.discord_bot.refresh_data()
 
-    def run_bot(self) -> None:
-        """Run the bot."""
-
+    async def run(self):
+        """
+        A custom start-up procedure to run the TG bot alongside another
+        process in the same event loop.
+        """
         # Create the Application and pass it your bot's token.
         config = PersistenceInput(
             bot_data=False,
@@ -280,8 +282,15 @@ class TelegramBot:
             store_data=config,
             update_interval=30
         )
+        # Here we set updater to None because we want our custom webhook server to handle the updates
+        # and hence we don't need an Updater instance
         token = os.environ['TELEGRAM_BOT_TOKEN']
-        application = Application.builder().token(token).persistence(persistence).build()
+        application = (
+            Application.builder().token(token).persistence(persistence).build()
+        )
+        # save the values in `bot_data` such that we may easily access them in the callbacks
+        application.bot_data["admin_chat_id"] = int(os.getenv("DEBUG_TG_ID"))
+        application.bot_data["default_guild"] = 1031616432049496225
 
         # Add conversation handler with the states CHOOSING, TYPING_CHOICE and TYPING_REPLY
         conv_handler = ConversationHandler(
@@ -326,22 +335,9 @@ class TelegramBot:
         show_data_handler = CommandHandler("show_data", self.show_data)
         application.add_handler(show_data_handler)
 
-        # Run Discord bot
-        #self.start_discord_bot()
-
-        # Run Telegram bot until the admin presses Ctrl-C
-        application.run_polling()
-
-
-def main():
-    """
-    Entry point of the script. If run directly, instantiates the
-    TelegramBot class and fires it up.
-    """
-
-    #telegram_bot = TelegramBot()
-    #telegram_bot.run_bot()
-    pass
-# If the script is run directly, fires the main procedure
-if __name__ == "__main__":
-    main()
+        # Run application and discord bot simultaneously & asynchronously
+        async with application:
+            await application.initialize() # inits bot, update, persistence
+            await application.start()
+            await application.updater.start_polling()
+            await self.start_discord_bot()
