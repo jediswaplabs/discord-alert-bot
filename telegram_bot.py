@@ -95,44 +95,52 @@ class TelegramBot:
         return
 
     async def start(self, update, context) -> int:
-        """Start the conversation, display any stored data and ask user for input."""
+        """Start the conversation, show current notifications or ask user for input."""
 
+        chat_id = update.message.chat_id
+        user_data = context.user_data
         check_keys = ["discord roles", "discord channels", "discord guild"]
-        reply_text = "Hello!\n\n"
+        reply_text = "Hello!\n\n"+("="*28)+"\n\n"
 
-        # Possibility: New user
-        if not context.user_data:
-            reply_text += (
-                " To receive a notification whenever your Discord handle is mentioned,"
-                " please select 'Discord handle' from the menu below."
-                " To restrict notifications to certain channels only,"
-                " select 'Discord channels'."
-                " To receive notifications for mentions of specific roles,"
-                " select 'Discord roles'."
-            )
-
-        # Possibility: Known user with incomplete user_data (dict keys)
-        if context.user_data and not all(check_keys) in context.user_data:
+        # Add missing user_data keys if not existing yet
+        if user_data and not all(x in user_data for x in check_keys):
             # Add 'guild', 'roles', 'channels' keys to user data
             await self.add_placeholders(update, context)
 
-        # Possibility: Known user with ccomplete user_data (dict keys)
+        # Possibility: Known user
+        if user_data:
+            # Get current notification triggers from Discord bot
+            active_notifications = await self.discord_bot.get_active_notifications(chat_id)
+
+            # Possibility: No notification triggers set yet
+            if all(v == set() for v in active_notifications.values()):
+                reply_text += (
+                    "There are no notifications from Discord set up currently. "
+                    "Please choose an option:"
+                )
+                # Send out message & end it here
+                await update.message.reply_text(reply_text, reply_markup=self.markup)
+                return self.CHOOSING
+
+            reply_text += "Currently notifications are set up for the following triggers:\n"
+            reply_text += self.parse_str(active_notifications)
+
+        # Possibility: New user / not in database yet
         else:
-
-            # OLD MSG
+            # Send explanatory message
             reply_text += (
-                f" Your data so far: \n{self.parse_str(context.user_data)}\n."
-                f" Please choose:"
+                "To receive a notification whenever your Discord handle is mentioned,"
+                " please select 'Discord handle' from the menu below. "
+                " To restrict notifications to certain channels only,"
+                " select 'Discord channels'."
+                " To receive notifications for mentions of specific roles,"
+                " select 'Discord roles'.\n"
             )
-            # OLD MSG
 
-
-            # Add a menu like:
-            # self.discord_bot.get_current_notifications_msg(self, len_lines=None)
-            # self.discord_bot.get_current_notifications_msg(self, len_lines=None)
-            active_notifications = self.discord_bot.get_active_notifications(TG_id)
-            reply_text = None
-await update.message.reply_text(reply_text, reply_markup=self.markup)
+        # Send out message
+        reply_text += "\n"+("="*28)
+        reply_text += "\n\nPlease choose:"
+        await update.message.reply_text(reply_text, reply_markup=self.markup)
 
         return self.CHOOSING
 
@@ -194,7 +202,7 @@ await update.message.reply_text(reply_text, reply_markup=self.markup)
 
         if context.user_data.get(text):
             reply_text = (
-                f"AAAAAAAYour {text}? I already know the following about that: {context.user_data[text]}"
+                f"Your {text}? I already know the following about that: {context.user_data[text]}"
             )
         else:
             reply_text = f"Your {text}? Yes, I would love to hear about that!"
@@ -292,8 +300,7 @@ await update.message.reply_text(reply_text, reply_markup=self.markup)
             del user_data["choice"]
 
         await update.message.reply_text(
-            f"Your data so far: \n{self.parse_str(user_data)}\n"
-            f"Hit /menu to edit.",
+            "Bring back the /menu anytime!",
             reply_markup=ReplyKeyboardRemove(),
         )
         return ConversationHandler.END

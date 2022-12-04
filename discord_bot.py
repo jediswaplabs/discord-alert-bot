@@ -154,7 +154,7 @@ class DiscordBot:
                 "No notifications are active currently. Hit /menu to set some up."
             )
         else:
-            msg = "These notifications are currently active:\n"
+            msg = "TO ADMIN: These notifications are currently active:\n"
             msg += return_pretty(self.listening_to, len_lines=len_lines)
             msg += "\nHit /menu to edit."
 
@@ -181,9 +181,9 @@ class DiscordBot:
             # Send out currently active notifications
             current_notifications_msg = await self.get_current_notifications_msg(20)
 
-            msg = "Discord bot is up & running!"
+            msg = "Discord bot is up & running!\nHit /menu to begin."
             await self.send_to_all(msg)
-            await self.send_to_TG(self.debug_chat_id, current_notifications_msg)
+            #await self.send_to_TG(self.debug_chat_id, current_notifications_msg)
 
         # Actions taken on every new Discord message
         @client.event
