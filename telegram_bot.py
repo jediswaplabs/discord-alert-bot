@@ -54,6 +54,8 @@ class TelegramBot:
             ["Delete my data", "Done"]
         ]
         self.markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+        # Application be initiated later for access from within every function
+        self.application = None
 
     def set_discord_instance(self, bot):
         """Setter if bot instance needs to be set from outside this scope."""
@@ -94,17 +96,12 @@ class TelegramBot:
 
     async def start(self, update, context) -> int:
         """Start the conversation, display any stored data and ask user for input."""
-        reply_text = "Hello!\n"
 
-        if context.user_data:
-            # Add 'guild', 'roles', 'channels' keys to user data
-            await self.add_placeholders(update, context)
+        check_keys = ["discord roles", "discord channels", "discord guild"]
+        reply_text = "Hello!\n\n"
 
-            reply_text += (
-                f" Your data so far: \n{self.parse_str(context.user_data)}\n."
-                f" Please choose:"
-            )
-        else:
+        # Possibility: New user
+        if not context.user_data:
             reply_text += (
                 " To receive a notification whenever your Discord handle is mentioned,"
                 " please select 'Discord handle' from the menu below."
@@ -113,7 +110,29 @@ class TelegramBot:
                 " To receive notifications for mentions of specific roles,"
                 " select 'Discord roles'."
             )
-        await update.message.reply_text(reply_text, reply_markup=self.markup)
+
+        # Possibility: Known user with incomplete user_data (dict keys)
+        if context.user_data and not all(check_keys) in context.user_data:
+            # Add 'guild', 'roles', 'channels' keys to user data
+            await self.add_placeholders(update, context)
+
+        # Possibility: Known user with ccomplete user_data (dict keys)
+        else:
+
+            # OLD MSG
+            reply_text += (
+                f" Your data so far: \n{self.parse_str(context.user_data)}\n."
+                f" Please choose:"
+            )
+            # OLD MSG
+
+
+            # Add a menu like:
+            # self.discord_bot.get_current_notifications_msg(self, len_lines=None)
+            # self.discord_bot.get_current_notifications_msg(self, len_lines=None)
+            active_notifications = self.discord_bot.get_active_notifications(TG_id)
+            reply_text = None
+await update.message.reply_text(reply_text, reply_markup=self.markup)
 
         return self.CHOOSING
 
@@ -158,13 +177,24 @@ class TelegramBot:
 
     async def discord_roles(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
-        # TODO
+
+        # Possibility: No Discord username is set yet. Forward to username prompt instead.
+        if 'discord handle' not in context.user_data:
+
+            reply_text = 'Please enter a Discord username first!'
+            await update.message.reply_text(reply_text)
+            return await self.discord_handle(update, context)
+
+
         text = update.message.text.lower()
         context.user_data["choice"] = text
 
+        #guild_id = int(os.getenv("TESTGUILD"))
+        #roles = await self.discord_bot.get_roles()
+
         if context.user_data.get(text):
             reply_text = (
-                f"Your {text}? I already know the following about that: {context.user_data[text]}"
+                f"AAAAAAAYour {text}? I already know the following about that: {context.user_data[text]}"
             )
         else:
             reply_text = f"Your {text}? Yes, I would love to hear about that!"
@@ -191,12 +221,13 @@ class TelegramBot:
         return self.TYPING_REPLY
 
     async def delete_my_data(self, update, context) -> int:
-        """Deletes user entry from pickle file and context."""
+        """Deletes user entry from pickle file, context & Discord bot's triggers."""
         text = update.message.text.lower()
         context.user_data["choice"] = text
 
         chat_id = update.message.chat_id
-        print('\n\n\n', 'user data requested:', context.user_data, '\n\n\n') # DEBUG
+        print('\n\n', 'delete_my_data(): Got context.user_data:', context.user_data, '\n\n') # DEBUG
+
         if context.user_data == {}:
             reply_text = (
                 "There's nothing here to be deleted yet!"
@@ -205,15 +236,21 @@ class TelegramBot:
         else:
             for k in context.user_data.copy().keys():
                 del context.user_data[k]
-            reply_text = f"Data successfully wiped!"
-            # refresh Discord bot here
+            reply_text = (
+                f"Data successfully wiped! "
+                f"Hit /menu to start over."
+            )
 
+            # Refresh Discord bot to propagate changes
+            await self.refresh_discord_bot()
+
+        # Notify user
         await update.message.reply_text(reply_text)
 
         return ConversationHandler.END
 
     async def received_information(self, update, context) -> int:
-        """Store info provided by user and ask for the next category."""
+        """Store info provided by user and reply with message."""
         text = update.message.text
         category = context.user_data["choice"]
         context.user_data[category] = text.lower()
@@ -235,7 +272,7 @@ class TelegramBot:
             reply_markup=self.markup,
         )
         # Relay changes in data to Discord bot
-        self.discord_bot.refresh_data()
+        await self.refresh_discord_bot()
 
         return self.CHOOSING
 
@@ -261,16 +298,19 @@ class TelegramBot:
         )
         return ConversationHandler.END
 
-    def refresh_discord_bot(self):
+    async def refresh_discord_bot(self):
         """Needs to be called for changes to notification settings to take effect."""
-        self.discord_bot.refresh_data()
+        # Update pickle db
+        await self.application.update_persistence()
+        # Reload pickle file in Discord bot & update notification triggers accordingly
+        await self.discord_bot.refresh_data()
 
     async def run(self):
         """
         A custom start-up procedure to run the TG bot alongside another
         process in the same event loop.
         """
-        # Create the Application and pass it your bot's token.
+        # Some config for the application
         config = PersistenceInput(
             bot_data=False,
             chat_data=False,
@@ -282,19 +322,14 @@ class TelegramBot:
             store_data=config,
             update_interval=30
         )
-        # Here we set updater to None because we want our custom webhook server to handle the updates
-        # and hence we don't need an Updater instance
+        # Create the application and pass it your bot's token.
         token = os.environ['TELEGRAM_BOT_TOKEN']
-        application = (
+        self.application = (
             Application.builder().token(token).persistence(persistence).build()
         )
-        # save the values in `bot_data` such that we may easily access them in the callbacks
-        application.bot_data["admin_chat_id"] = int(os.getenv("DEBUG_TG_ID"))
-        application.bot_data["default_guild"] = 1031616432049496225
 
-        # Add conversation handler with the states CHOOSING, TYPING_CHOICE and TYPING_REPLY
+        # Define conversation handler with the states CHOOSING, TYPING_CHOICE and TYPING_REPLY
         conv_handler = ConversationHandler(
-            #entry_points=[CommandHandler("start", self.start)],
             entry_points=[
                 CommandHandler("start", self.start),
                 CommandHandler("menu", self.start),
@@ -320,24 +355,35 @@ class TelegramBot:
                 ],
                 self.TYPING_REPLY: [
                     MessageHandler(
-                        filters.TEXT & ~(filters.COMMAND | filters.Regex("^(back|Done)$")),
+                        filters.Regex("^menu$"),
+                        self.start
+                    ),
+                    MessageHandler(
+                        filters.TEXT & ~(filters.COMMAND | filters.Regex("^(back|Done|menu)$")),
                         self.received_information
-                    )
+                    ),
                 ],
             },
             fallbacks=[MessageHandler(filters.Regex("^Done$"), self.done)],
             name="my_conversation",
-            persistent=True,
+            persistent=False,  # DEBUG: changed from True to False!
         )
 
-        application.add_handler(conv_handler)
-
+        # Add handlers to application
+        self.application.add_handler(conv_handler)
         show_data_handler = CommandHandler("show_data", self.show_data)
-        application.add_handler(show_data_handler)
+        self.application.add_handler(show_data_handler)
 
+        #current_conv_handler = conv_handler
+        #key = current_conv_handler._get_key(update)
+        #state = current_conv_handler.conversations.get(key)
+
+        #print(f"\n\n{state}\n\n")
+
+        #return
         # Run application and discord bot simultaneously & asynchronously
-        async with application:
-            await application.initialize() # inits bot, update, persistence
-            await application.start()
-            await application.updater.start_polling()
+        async with self.application:
+            await self.application.initialize() # inits bot, update, persistence
+            await self.application.start()
+            await self.application.updater.start_polling()
             await self.start_discord_bot()

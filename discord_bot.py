@@ -2,13 +2,15 @@
 # -*- coding: utf-8 -*-
 """
 This file contains the discord bot to be called from within telegram_bot.py.
-DiscordBot instantiates a second telegram bot for sending out the notifications.
+DiscordBot instantiates a second telegram bot for sending out the notifications
+to Telegram whenever they are triggered by a Discord message.
 """
 
 import os, discord
 from dotenv import load_dotenv
 from telegram import Bot
 from pandas import read_pickle
+from helpers import return_pretty
 load_dotenv()
 
 class DiscordBot:
@@ -23,7 +25,7 @@ class DiscordBot:
         # Instantiate Telegram bot to send out messages to users
         TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
         self.telegram_bot = Bot(TELEGRAM_TOKEN)
-        # Set of Discord usernames & roles that the Discord bot is listening to
+        # Set of Discord usernames & roles that trigger Telegram notifications (always up-to-date)
         self.listening_to = {"handles": set(), "roles": set()}
         # Reverse lookup {"handles": {discord username: {telegram id, telegram id}}
         self.discord_telegram_map = {"handles": {}, "roles": {}}
@@ -34,14 +36,23 @@ class DiscordBot:
         self.debug_chat_id = int(os.getenv("DEBUG_TG_ID"))
         self.client = None
 
-    def refresh_data(self):
+    async def refresh_data(self):
         """
         Populates/updates users, listening_to, discord_telegram_map.
         """
-        # Reload database from file
-        self.users = read_pickle(self.data_path)["user_data"]
-        print('\n\nself.users -> ', self.users)
-        # Update sets of notification triggers and reverse lookups
+        # Reload database from file. Skip all if no file created yet.
+        try:
+            self.users = read_pickle(self.data_path)["user_data"]
+        except FileNotFoundError:
+            return
+
+        print('\n\ndiscord_bot.refresh_data(self): self.users right now:', self.users)
+
+        # Wipe listening_to and discord_telegram_map
+        self.listening_to = {"handles": set(), "roles": set()}
+        self.discord_telegram_map = {"handles": {}, "roles": {}}
+
+        # Repopulate sets of notification triggers and reverse lookups
         for k, v in self.users.items():
             TG_id = k
             # Add Discord handles to set of notification triggers
@@ -63,7 +74,7 @@ class DiscordBot:
                         self.discord_telegram_map["roles"][role] = set()
                     self.discord_telegram_map["roles"][role].add(TG_id)
         # Debug area
-        print("\nself.discord_bot.refresh_data() called successfully!\n")
+        print("\nself.discord_bot.refresh_data() finished successfully!\n")
         print("Data updated from Pickle file:")
         print(f"users: {self.users}")
         print(f"listening_to: {self.listening_to}")
@@ -87,14 +98,14 @@ class DiscordBot:
         for _id in TG_ids:
             await self.send_to_TG(_id, msg)
 
-    def get_roles(self, discord_username, guild_id=1031616432049496225):
+    async def get_roles(self, discord_username, guild_id):
         """
         Takes a Discord username, returns all roles set for user in current guild.
         """
         #TODO Pass guild_id arg along from TG bot
         #user = client.fetch_user(user_id)
-        guild = self.client.get_guild(guild_id)
-        user = guild.get_member_named(discord_username)
+        guild = await self.client.get_guild(guild_id)
+        user = await guild.get_member_named(discord_username)
         roles = [role.name for role in user.roles]
 
         print(f"\n\nDEBUG DISCORD: Got these roles: {roles}") # Debug only
@@ -112,10 +123,47 @@ class DiscordBot:
         return {"handles": handles_active, "roles": roles_active}
 
 
+    async def get_active_notifications(self, TG_id) -> dict:
+        """
+        Returns a dictionary of type {category_1: {triggers}, category_2: ...}
+        for all Discord triggers the bot is currently listening to for this
+        Telegram user.
+        """
+        lookup = self.discord_telegram_map
+
+        d = {category: set() for category in lookup}
+
+        # Add all triggers containing this Telegram id to their respective category in d
+        for category, trigger_dict in lookup.items():
+            for trigger, id_set in trigger_dict.items():
+                if TG_id in id_set:
+                    d[category].add(trigger)
+
+        return d
+
+    async def get_current_notifications_msg(self, len_lines=None) -> str:
+        """
+        Returns a nicely formatted ready-to-send message str showing which
+        Discord triggers the bot is currently listening to.
+        """
+        handles = self.listening_to["handles"]
+        roles = self.listening_to["roles"]
+
+        if handles == set() and roles == set():
+            msg = (
+                "No notifications are active currently. Hit /menu to set some up."
+            )
+        else:
+            msg = "These notifications are currently active:\n"
+            msg += return_pretty(self.listening_to, len_lines=len_lines)
+            msg += "\nHit /menu to edit."
+
+        return msg
+
     async def run_bot(self):
         """Actual logic of the bot is stored here."""
         # Update data to listen to at startup
-        self.refresh_data()
+        await self.refresh_data()
 
         # Fire up discord client
         intents = discord.Intents.default()
@@ -127,15 +175,15 @@ class DiscordBot:
         # Actions taken at startup
         @client.event
         async def on_ready():
-            handles = self.listening_to["handles"]
-            roles = self.listening_to["roles"]
-            mentions_update = f"""
-            Notifications active for mentions of {handles} and {roles}.
-            """
-            print(f"\n\n{client.user.name} has connected to Discord!\n\n")
+
+            print(f"\n\n{client.user.name} has connected to Discord!\n\n") # Debug only
+
+            # Send out currently active notifications
+            current_notifications_msg = await self.get_current_notifications_msg(20)
+
             msg = "Discord bot is up & running!"
             await self.send_to_all(msg)
-            await self.send_to_TG(self.debug_chat_id, mentions_update)
+            await self.send_to_TG(self.debug_chat_id, current_notifications_msg)
 
         # Actions taken on every new Discord message
         @client.event
