@@ -9,7 +9,7 @@ command line to stop the bot.
 
 import logging, os, random
 from helpers import log
-from asyncio import sleep
+import asyncio
 from typing import Dict
 from dotenv import load_dotenv
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
@@ -23,7 +23,7 @@ from telegram.ext import (
     PersistenceInput,
     filters,
 )
-load_dotenv('./.env')
+load_dotenv("./.env")
 
 
 class TelegramBot:
@@ -36,7 +36,7 @@ class TelegramBot:
         Constructor of the class. Initializes certain instance variables.
         """
         # The single data file the bot is using
-        self.data_path = './data'
+        self.data_path = "./data"
         # Discord bot instance (set from outside this scope)
         self.discord_bot = discord_bot_instance
 
@@ -71,17 +71,23 @@ class TelegramBot:
         out_list = []
         # Only show non-null values
         for key, value in user_data.items():
-            if value not in [set(), [], None, '']:
-                out_list.append(f'{key} - {value}')
+            if value not in [set(), [], None, ""]:
+                out_list.append(f"{key} - {value}")
         return "\n".join(out_list).join(["\n", "\n"])
 
 
-    def under_construction_msg(self):
+    def under_construction_msg(self, custom_msg=None):
         """A placeholder message for yet to be implemented features."""
-        reply = (
-            "🚧 "*8+"\n\n\t...under construction...\n\n"+"🚧 "*8+ \
-            "\n\nEnter 'Done' to go back."
-        )
+
+        if custom_msg:
+            reply = "🚧 "*8+"\n\n" + custom_msg + "\n\n"+"🚧 "*8
+            reply += "\n\nBack to /menu or /done."
+
+        else:
+            reply = (
+                "🚧 "*8+"\n\n\t...under construction...\n\n"+"🚧 "*8+ \
+                "\n\nBack to /menu or /done."
+            )
         return str(reply)
 
 
@@ -91,72 +97,77 @@ class TelegramBot:
         context.user_data["discord roles"] = set()
         context.user_data["discord channels"] = set()
         context.user_data["discord guild"] = guild
+        await self.refresh_discord_bot()
         return
 
 
     async def start(self, update, context) -> int:
-        """Start the conversation, show current notifications or ask user for input."""
+        """Start the conversation, show active notifications & button menu."""
 
         chat_id = update.message.chat_id
         user_data = context.user_data
         check_keys = ["discord roles", "discord channels", "discord guild"]
-        reply_text = "Hello!\n\n"+("="*28)+"\n\n"
 
         # Add missing user_data keys if not existing yet
         if user_data and not all(x in user_data for x in check_keys):
-            # Add 'guild', 'roles', 'channels' keys to user data
+            # Add "guild", "roles", "channels" keys to user data
             await self.add_placeholders(update, context)
 
-        # Possibility: Known user
+        # Possibility: Known user -> show active notifications & button menu
         if user_data:
+
             # Get current notification triggers from Discord bot
+            await self.refresh_discord_bot()
             active_notifications = await self.discord_bot.get_active_notifications(chat_id)
 
             # Possibility: No notification triggers set yet
             if all(v == set() for v in active_notifications.values()):
-                reply_text += (
-                    "There are no notifications from Discord set up currently.\n\n"
-                    "============================\nPlease choose an option:"
+                reply_text = (
+                    "~~~~~~~~~~~~~~~~~~~~~~\n\n"
+                    "There are no notifications from Discord set up currently. "
+                    "\n\n~~~~~~~~~~~~~~~~~~~~~~\nPlease choose an option:"
                 )
                 # Send out message & end it here
                 await update.message.reply_text(reply_text, reply_markup=self.markup)
+
                 return self.CHOOSING
 
-            reply_text += "Currently notifications are set up for the following triggers:\n"
+            # Possibility: At least one active notification trigger
+            reply_text = (
+                "~~~~~~~~~~~~~~~~~~~~~~\n\n"
+                "Current active notifications:\n"
+            )
             reply_text += self.parse_str(active_notifications)
+            reply_text += "\n~~~~~~~~~~~~~~~~~~~~~~\n"
 
-        # Possibility: New user / not in database yet
+        # Possibility: New user -> show explainer & button menu
         else:
-            # Send explanatory message
-            reply_text += (
+            reply_text = (
+                "Hello!\n\n"
                 "To receive a notification whenever your Discord handle is mentioned,"
                 " please select 'Discord handle' from the menu below. "
                 " To restrict notifications to certain channels only,"
                 " select 'Discord channels'."
                 " To receive notifications for mentions of specific roles,"
-                " select 'Discord roles'.\n"
+                " select 'Discord roles'."
+                " \n\nPlease choose:"
             )
 
         # Send out message
-        reply_text += "\n"+("="*28)
-        reply_text += "\n\nPlease choose:"
         await update.message.reply_text(reply_text, reply_markup=self.markup)
 
         return self.CHOOSING
 
 
-    async def discord_handle(self, update, context, internally_called=False) -> int:
+    async def discord_handle(self, update, context) -> int:
         """Discord username menu"""
-        text = update.message.text.lower()
-        context.user_data["choice"] = text
 
-        # Don't infer category if not called by the press of a button
-        if internally_called: context.user_data["choice"] = 'discord handle'
+        context.user_data["choice"] = "discord handle"
 
         # Prompt for Discord handle
-        rand_name = random.choice(['tom', 'anna', 'mia', 'max'])
+        rand_name = random.choice(["tom", "anna", "mia", "max"])
         rand_i = str(random.randint(100,999))
-        rand_user = rand_name+'#'+rand_i
+        rand_user = rand_name+"#"+rand_i
 
         reply_text = (
             f"Please enter your Discord username (i.e. {rand_user}). "
@@ -170,18 +181,19 @@ class TelegramBot:
 
     async def discord_roles(self, update, context) -> int:
         """Discord roles menu"""
-        text = update.message.text.lower()
-        context.user_data["choice"] = text
+
+        context.user_data["choice"] = "discord roles"
         guild_id = int(os.getenv("GUILD_ID"))
 
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
-        if 'discord handle' not in context.user_data:
-
-            reply_text = 'Please enter a Discord username first!'
+        if "discord handle" not in context.user_data:
+            log("DISCORD HANDLE CHECK: NO KEY FOUND")
+            reply_text = "Please enter a Discord username first!"
             await update.message.reply_text(reply_text)
             return await self.discord_handle(update, context)
 
-        discord_handle = context.user_data['discord handle']
+        log("DISCORD HANDLE CHECK: KEY FOUND")
+        discord_handle = context.user_data["discord handle"]
         guild_name = await self.discord_bot.get_guild(guild_id)
         roles_available = await self.discord_bot.get_roles(discord_handle, guild_id)
 
@@ -200,46 +212,32 @@ class TelegramBot:
     async def discord_channels(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
         # TODO
-        text = update.message.text.lower()
-        context.user_data["choice"] = text
+        context.user_data["choice"] = "discord channels"
 
-        if context.user_data.get(text):
-            reply_text = (
-                f"Your {text}? I already know the following about that: {context.user_data[text]}"
-            )
-        else:
-            reply_text = f"Your {text}? Yes, I would love to hear about that!"
         reply_text = self.under_construction_msg()
         await update.message.reply_text(reply_text)
 
+        del context.user_data["choice"]
         return self.TYPING_REPLY
 
 
     async def discord_guild(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
         # TODO
-        text = update.message.text.lower()
-        context.user_data["choice"] = text
-
-        if context.user_data.get(text):
-            reply_text = (
-                f"Your {text}? I already know the following about that: {context.user_data[text]}"
-            )
-        else:
-            reply_text = f"Your {text}? Yes, I would love to hear about that!"
-        reply_text = self.under_construction_msg()
+        context.user_data["choice"] = "discord guild"
+        msg = "For now, the guild is predetermined."
+        reply_text = self.under_construction_msg(custom_msg=msg)
         await update.message.reply_text(reply_text)
 
+        del context.user_data["choice"]
         return self.TYPING_REPLY
 
 
     async def delete_my_data(self, update, context) -> int:
         """Deletes user entry from pickle file, context & Discord bot's triggers."""
-        text = update.message.text.lower()
-        context.user_data["choice"] = text
-        chat_id = update.message.chat_id
 
         if context.user_data == {}:
+
             reply_text = (
                 "There's nothing here to be deleted yet!"
                 " Back to /menu"
@@ -247,6 +245,7 @@ class TelegramBot:
         else:
             for k in context.user_data.copy().keys():
                 del context.user_data[k]
+
             reply_text = (
                 f"Data successfully wiped! "
                 f"Hit /menu to start over."
@@ -257,62 +256,83 @@ class TelegramBot:
 
         # Notify user
         await update.message.reply_text(reply_text)
+        if "choice" in context.user_data: del context.user_data["choice"]
 
         return ConversationHandler.END
 
 
     async def received_information(self, update, context) -> int:
         """Store info provided by user and reply with message."""
+
         text = update.message.text
         category = context.user_data["choice"]
+        guild_id = int(os.getenv("GUILD_ID"))
+        guild_name = await self.discord_bot.get_guild(guild_id)
 
-        # If category is discord handle: Check if it acutally exists.
-        if category == 'discord handle':
-            guild_id = int(os.getenv("GUILD_ID"))
-            user = await self.discord_bot.get_user(guild_id, text)
+        # Check if user-entered data exists on Discord
+        if category == "discord handle":
+            check = await self.discord_bot.get_user(guild_id, text)
+        elif category == "discord channels":
+            check = None # TODO: await self.discord_bot.get_channel(guild_id, text)
+        elif category == "discord guild":
+            check = None # TODO: await self.discord_bot.get_guild(text)
+        elif category == "discord roles":
+            roles = await self.discord_bot.get_guild_roles(guild_id)
+            check = True if text in roles else None
+        else:
+            check = True
 
-            if user == None:
-                #del context.user_data["choice"]
+        # If invalid data -> Repeat prompt with notice.
+        if check == None:
+
+            if category == "discord guild":
+                reply_text = f"No guild found on Discord with id {text}."
+
+            else:
                 guild_name = await self.discord_bot.get_guild(guild_id)
-                reply_text = (
-                    f"{text} doesn't seem to exist on {guild_name}."
-                    f" Please try again or go back to /menu."
-                )
-                await update.message.reply_text(reply_text)
-                await self.discord_handle(update, context, internally_called=True)
-                return
+                reply_text = f"{text} doesn't seem to exist on {guild_name}."
 
-        # Possibility: No entry yet under this key -> Create entry
-        if category not in context.user_data:
-            log(f"received_information():\tPOSSIBILITY 1")
+            cat = category.replace("discord", "Discord").rstrip("s")
+            reply_text += f"\nPlease enter a valid {cat} or go back to /menu."
+            await update.message.reply_text(reply_text)
+
+            return self.TYPING_REPLY
+
+        # Updating database
+
+        # Possibility: No entry yet under this key -> Create entry if in allow_list
+        allow_list = ["discord handle", "discord guild"]
+        if (category not in context.user_data) and (category in allow_list):
+            log(f"received_information():\tPOSSIBILITY 1: NO KEY FOUND -> CREATE ENTRY")
             context.user_data[category] = text.lower()
 
-        # Possibility: Value of type set -> Add to set (i.e. for roles, channels)
+        # Possibility: Key known & points to set -> Add to set (i.e. for roles, channels)
         elif isinstance(context.user_data[category], set):
-            log(f"received_information():\tPOSSIBILITY 2")
+            log(f"received_information():\tPOSSIBILITY 2: ADD TO SET")
             context.user_data[category].add(text.lower())
 
-        # Possibility: Single value entry already exists -> Overwrite
+        # Possibility: Key known & points to anything other than a set -> Overwrite
         else:
-            log(f"received_information():\tPOSSIBILITY 3")
+            log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
             context.user_data[category] = text.lower()
 
-        del context.user_data["choice"]
+
 
         # TODO: If coming from roles or channels: Ask if another should be added
-        log(f"received_information():\ntext: {text}\ncategory: {category}")
+        del context.user_data["choice"]
+        log(f"RECEIVED INFORMATION:\n\ntext: {text}\ncategory: {category}")
 
         # Relay changes to Discord bot
         await self.refresh_discord_bot()
 
         await update.message.reply_text(
             "Success! Your data so far:"
-            f"\n{self.parse_str(context.user_data)}\n"
-            "Hit /menu to edit.",
+            f"\n{self.parse_str(context.user_data)}\n\n",
             reply_markup=self.markup,
         )
 
-        return self.CHOOSING
+        return await self.start(update, context)
+        #return self.CHOOSING
 
 
     async def show_data(self, update, context) -> None:
@@ -338,11 +358,15 @@ class TelegramBot:
 
 
     async def refresh_discord_bot(self):
-        """Needs to be called for changes to notification settings to take effect."""
+        """Needs to be called for changes of notification settings to take effect."""
+
         # Update pickle db
         await self.application.update_persistence()
+        await asyncio.sleep(1)
+
         # Reload pickle file in Discord bot & update notification triggers accordingly
         await self.discord_bot.refresh_data()
+        log("REFRESHED DISCORD_BOT")
 
 
     async def run(self):
@@ -363,7 +387,7 @@ class TelegramBot:
             update_interval=30
         )
         # Create the application and pass it your bot's token.
-        token = os.environ['TELEGRAM_BOT_TOKEN']
+        token = os.environ["TELEGRAM_BOT_TOKEN"]
         self.application = (
             Application.builder().token(token).persistence(persistence).build()
         )
@@ -391,7 +415,7 @@ class TelegramBot:
                     ),
                     MessageHandler(filters.Regex("^Delete my data$"),
                         self.delete_my_data
-                    ),
+                    )
                 ],
                 self.TYPING_REPLY: [
                     MessageHandler(
@@ -399,14 +423,32 @@ class TelegramBot:
                         self.received_information
                     ),
                     MessageHandler(
-                        filters.TEXT & ~(filters.Regex("^menu$")),
+                        filters.Regex("^menu$"),
                         self.start
                     ),
+                    MessageHandler(
+                        filters.COMMAND,
+                        self.start
+                    )
                 ],
             },
-            fallbacks=[MessageHandler(filters.Regex("^Done$"), self.done)],
+            #fallbacks=[MessageHandler(filters.Regex("^(Done|/done)$"), self.done)],
+            fallbacks=[
+                MessageHandler(
+                    filters.Regex("^Done$"),
+                    self.done
+                ),
+                CommandHandler(
+                    "menu",
+                    self.start
+                ),
+                CommandHandler(
+                    "done",
+                    self.done
+                )
+            ],
             name="my_conversation",
-            persistent=False,  # DEBUG: changed from True to False!
+            persistent=False
         )
 
         # Add handlers to application

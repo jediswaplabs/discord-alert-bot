@@ -95,8 +95,8 @@ class DiscordBot:
 
 
     async def send_to_all(self, msg):
-        """Sends a message to all Telegram bot users."""
-        TG_ids = list(self.users.keys())
+        """Sends a message to all Telegram bot users except if they wiped their data."""
+        TG_ids = [k for k, v in self.users.items() if v != {}]
         for _id in TG_ids:
             await self.send_to_TG(_id, msg)
 
@@ -110,6 +110,12 @@ class DiscordBot:
         """Takes guild id & username, returns user object or None if not found."""
         guild = await self.get_guild(guild_id)
         return guild.get_member_named(username)
+
+
+    async def get_guild_roles(self, guild_id):
+        """Takes guild id returns list of names of all roles on guild."""
+        guild = await self.get_guild(guild_id)
+        return [x.name for x in guild.roles]
 
 
     async def get_roles(self, discord_username, guild_id):
@@ -180,7 +186,7 @@ class DiscordBot:
 
             log(f"Discord message -> {message}")
             log(f"message.mentions -> {message.mentions}")
-            line = "\n"+("="*28)+"\n"
+            line = "\n"+("~"*22)+"\n"
 
             # If no user mentions in message -> Skip this part
             if message.mentions != []:
