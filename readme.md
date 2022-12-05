@@ -36,7 +36,7 @@ pip3 install -r requirements.txt
 
 Enter the Telegram and Discord bot tokens into `.env` to their respective keys, as shown in [sample.env](https://github.com/jediswaplabs/discord-alert-bot/blob/main/sample.env). Likewise, enter the guild id of the guild you want to use it in to the file. This guild has to have _Telegram Alerts_ bot as member.
 
-Run `main.py` start the bot. 
+Run `main.py` to start the bot. 
 ```
 python main.py
 ```
