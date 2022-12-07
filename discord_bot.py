@@ -38,7 +38,7 @@ class DiscordBot:
         self.client = None
 
 
-    async def refresh_data(self):
+    async def refresh_data(self) -> None:
         """
         Populates/updates users, listening_to, discord_telegram_map.
         """
@@ -81,7 +81,7 @@ class DiscordBot:
         log(f"discord_telegram_map:\n{self.discord_telegram_map}")
 
 
-    async def send_to_TG(self, telegram_user_id, msg):
+    async def send_to_TG(self, telegram_user_id, msg) -> None:
         """
         Sends a message a specific Telegram user id.
         Uses Markdown V1 for inline link capability.
@@ -94,44 +94,42 @@ class DiscordBot:
             )
 
 
-    async def send_to_all(self, msg):
+    async def send_to_all(self, msg) -> None:
         """Sends a message to all Telegram bot users except if they wiped their data."""
         TG_ids = [k for k, v in self.users.items() if v != {}]
         for _id in TG_ids:
             await self.send_to_TG(_id, msg)
 
 
-    async def get_guild(self, guild_id):
+    async def get_guild(self, guild_id) -> discord.Guild:
         """Takes guild id, returns guild object or None if not found."""
         return self.client.get_guild(guild_id)
 
 
-    async def get_user(self, guild_id, username):
+    async def get_user(self, guild_id, username) -> discord.User:
         """Takes guild id & username, returns user object or None if not found."""
         guild = await self.get_guild(guild_id)
         return guild.get_member_named(username)
 
 
-    async def get_guild_roles(self, guild_id):
+    async def get_guild_roles(self, guild_id) -> list:
         """Takes guild id returns list of names of all roles on guild."""
         guild = await self.get_guild(guild_id)
         return [x.name for x in guild.roles]
 
 
-    async def get_roles(self, discord_username, guild_id):
-        """
-        Takes a Discord username, returns all user's roles in current guild.
-        """
+    async def get_roles(self, discord_username, guild_id) -> list:
+        """Takes a Discord username, returns all user's roles in current guild."""
         guild = await self.get_guild(guild_id)
         guild_name = guild.name
         user = guild.get_member_named(discord_username)
         roles = [role.name for role in user.roles]
-
         log(f"get_roles(): Got these roles for {discord_username}: {roles}")
+
         return roles
 
 
-    def get_listening_to(self, TG_id):
+    def get_listening_to(self, TG_id) -> dict:
         """
         Takes a TG username, returns whatever this user gets notifications for
         currently.
@@ -160,7 +158,7 @@ class DiscordBot:
         return d
 
 
-    async def run_bot(self):
+    async def run_bot(self) -> None:
         """Actual logic of the bot is stored here."""
         # Update data to listen to at startup
         await self.refresh_data()
