@@ -52,12 +52,12 @@ class TelegramBot:
         self.application = None
 
 
-    def set_discord_instance(self, bot):
+    def set_discord_instance(self, bot) -> None:
         """Setter if bot instance needs to be set from outside this scope."""
         self.discord_bot = bot
 
 
-    async def start_discord_bot(self):
+    async def start_discord_bot(self) -> None:
         """
         Starts Discord bot. This needs to be the final addition to the event loop
         since anything after starting the Discord bot will only be run after
@@ -76,7 +76,7 @@ class TelegramBot:
         return "\n".join(out_list).join(["\n", "\n"])
 
 
-    def under_construction_msg(self, custom_msg=None):
+    def under_construction_msg(self, custom_msg=None) -> str:
         """A placeholder message for yet to be implemented features."""
 
         if custom_msg:
@@ -332,7 +332,6 @@ class TelegramBot:
         )
 
         return await self.start(update, context)
-        #return self.CHOOSING
 
 
     async def show_data(self, update, context) -> None:
@@ -357,7 +356,7 @@ class TelegramBot:
         return ConversationHandler.END
 
 
-    async def refresh_discord_bot(self):
+    async def refresh_discord_bot(self) -> None:
         """Needs to be called for changes of notification settings to take effect."""
 
         # Update pickle db
@@ -369,7 +368,7 @@ class TelegramBot:
         log("REFRESHED DISCORD_BOT")
 
 
-    async def run(self):
+    async def run(self) -> None:
         """
         A custom start-up procedure to run the TG bot alongside another
         process in the same event loop.
