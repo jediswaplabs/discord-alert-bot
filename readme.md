@@ -15,7 +15,7 @@ in for this server.
 
 ## Requirements & Installation
 
-The bot requires python >= 3.6 and uses the packages listed in `requirements.txt`.
+The bot requires python >= 3.7 and uses the packages listed in `requirements.txt`.
 The best practice would be to install a virtual environment and install the
 requirements afterwards using `pip`:
 
@@ -27,10 +27,21 @@ If you're using `conda`, you can create a virtual environment and install the
 requirements using this code:
 
 ```
-conda create -n discord-alert-bot python=3.6
+conda create -n discord-alert-bot python=3.9
 conda activate discord-alert-bot
 pip3 install -r requirements.txt
 ```
+
+## Usage
+
+Enter the Telegram and Discord bot tokens into `.env` to their respective keys, as shown in [sample.env](https://github.com/jediswaplabs/discord-alert-bot/blob/main/sample.env). Likewise, enter the guild id of the guild you want to use it in to the file. This guild has to have _Telegram Alerts_ bot as member.
+
+Run `main.py` to start the bot. 
+```
+python main.py
+```
+
+On Telegram, start a conversation with _@DiscordAlertsBot_ to set up notifications.
 
 ## License
 
