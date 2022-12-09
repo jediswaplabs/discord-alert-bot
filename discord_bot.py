@@ -34,7 +34,6 @@ class DiscordBot:
         self.users = dict()
         # Path to shared database (data entry via telegram_bot.py)
         self.data_path = "./data"
-        self.debug_chat_id = int(os.getenv("DEBUG_TG_ID"))
         self.client = None
 
 

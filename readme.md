@@ -5,8 +5,7 @@
 
 A Telegram bot that notifies you when your handle is mentioned in a specific Discord server
 
-To run, add the bot _Telegram Alerts_ to the **Discord** server you want to get notifications for.
-It only needs permissions read messages and see server members.
+To run, add the bot [Telegram Alerts](https://discord.com/oauth2/authorize?client_id=1031609181700104283&scope=bot&permissions=1024) to the **Discord** server you want to get notifications for. It only needs permissions read messages.
 
 On **Telegram**, look for _@DiscordAlertsBot_ and start a conversation with it.
 It will prompt for your Discord handle and the Discord server you want to use it in.
@@ -20,23 +19,23 @@ The best practice would be to install a virtual environment and install the
 requirements afterwards using `pip`:
 
 ```
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-If you're using `conda`, you can create a virtual environment and install the
+If you're using [anaconda](https://www.anaconda.com), you can create a virtual environment and install the
 requirements using this code:
 
 ```
 conda create -n discord-alert-bot python=3.9
 conda activate discord-alert-bot
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Usage
 
 Enter the Telegram and Discord bot tokens into `.env` to their respective keys, as shown in [sample.env](https://github.com/jediswaplabs/discord-alert-bot/blob/main/sample.env). Likewise, enter the guild id of the guild you want to use it in to the file. This guild has to have _Telegram Alerts_ bot as member.
 
-Run `main.py` to start the bot. 
+Run `main.py` to start the bot.
 ```
 python main.py
 ```

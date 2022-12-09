@@ -1,5 +1,4 @@
 discord.py==2.1.0
 pandas==1.5.2
 python-dotenv==0.21.0
-python_telegram_bot==13.14
-telegram==0.0.1
+python_telegram_bot==20.0a6
