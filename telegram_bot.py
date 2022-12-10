@@ -240,8 +240,6 @@ class TelegramBot:
             "\nOr hit /menu to leave the current guild unchanged."
         )
 
-        #reply_text = self.under_construction_msg(custom_msg=msg)
-
         await update.message.reply_text(
             reply_text,
             disable_web_page_preview=True,
@@ -293,7 +291,10 @@ class TelegramBot:
         elif category == "discord channels":
             check = None # TODO: await self.discord_bot.get_channel(guild_id, text)
         elif category == "discord guild":
-            check = await self.discord_bot.get_guild(text)
+            if text.isdigit():
+                check = await self.discord_bot.get_guild(int(text))
+            else:
+                check = None    # Guild ID has to consist of numbers only
         elif category == "discord roles":
             roles = await self.discord_bot.get_guild_roles(guild_id)
             check = True if text in roles else None
@@ -304,7 +305,14 @@ class TelegramBot:
         if check == None:
 
             if category == "discord guild":
-                reply_text = f"No guild found on Discord with id {text}."
+                reply_text = (
+                    f"No guild found on Discord with ID {text}."
+                    " Please make sure the entered ID is correct and the bot"
+                    " has been [added to the Discord guild](https://www.howtogeek.com/"
+                    "744801/how-to-add-a-bot-to-discord/) using [this](https://discord."
+                    "com/oauth2/authorize?client_id=1031609181700104283&scope=bot&permissions"
+                    "=1024) invite link."
+                )
 
             else:
                 guild_name = await self.discord_bot.get_guild(guild_id)
@@ -312,11 +320,16 @@ class TelegramBot:
 
             cat = category.replace("discord", "Discord").rstrip("s")
             reply_text += f"\nPlease enter a valid {cat} or go back to /menu."
-            await update.message.reply_text(reply_text)
+
+            await update.message.reply_text(
+                reply_text,
+                disable_web_page_preview=True,
+                parse_mode="Markdown"
+                )
 
             return self.TYPING_REPLY
 
-        # Updating database
+        # Else: Update database with entered information
 
         # Possibility: No entry yet under this key -> Create entry if in allow_list
         allow_list = ["discord handle", "discord guild"]
