@@ -35,6 +35,6 @@ asyncio.run(tg_bot.run())
 # DONE: function for users to delete their data!
 # DONE: Prompt for discord handle, roles to listen to
 # DONE: Find out best way to run both bots within 1 thread asynchronously
-# TODO: Switch off logging when most basic features seem implemented
+# TODO: Switch off logging once debugging is done
 # TODO: Implement some way to assert that bot is not offline
 #       (i.e. call some bot function every 5 minutes & check for a reply)

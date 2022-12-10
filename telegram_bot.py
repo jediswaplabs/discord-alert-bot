@@ -93,7 +93,7 @@ class TelegramBot:
 
     async def add_placeholders(self, update, context) -> None:
         """Helper function to create some user_data entries."""
-        guild = int(os.getenv("GUILD_ID"))
+        guild = int(os.getenv("DEFAULT_GUILD"))
         context.user_data["discord roles"] = set()
         context.user_data["discord channels"] = set()
         context.user_data["discord guild"] = guild
@@ -183,7 +183,7 @@ class TelegramBot:
         """Discord roles menu"""
 
         context.user_data["choice"] = "discord roles"
-        guild_id = int(os.getenv("GUILD_ID"))
+        guild_id = context.user_data["discord guild"]
 
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
         if "discord handle" not in context.user_data:
@@ -225,11 +225,29 @@ class TelegramBot:
         """Ask the user for info about the selected predefined choice."""
         # TODO
         context.user_data["choice"] = "discord guild"
-        msg = "For now, the guild is predetermined."
-        reply_text = self.under_construction_msg(custom_msg=msg)
-        await update.message.reply_text(reply_text)
+        current_guild = int(context.user_data["discord guild"])
+        default_guild = int(os.getenv("DEFAULT_GUILD"))
+        guild_name = await self.discord_bot.get_guild(current_guild)
 
-        del context.user_data["choice"]
+        reply_text = (
+            f"Currently the bot is set up for:\n\n\t*{guild_name.name}*\n\t(ID {str(current_guild)})\n\n"
+        )
+        if current_guild == default_guild: reply_text += "This is the default setup. "
+        reply_text += (
+            "\nTo change, please enter a valid Discord guild ID ( = server ID)."
+            " See [instructions](https://support.discord.com/hc/en-us/articles/"
+            "206346498-Where-can-I-find-my-User-Server-Message-ID-) for help on finding it."
+            "\nOr hit /menu to leave the current guild unchanged."
+        )
+
+        #reply_text = self.under_construction_msg(custom_msg=msg)
+
+        await update.message.reply_text(
+            reply_text,
+            disable_web_page_preview=True,
+            parse_mode="Markdown")
+
+        #del context.user_data["choice"]
         return self.TYPING_REPLY
 
 
@@ -266,7 +284,7 @@ class TelegramBot:
 
         text = update.message.text
         category = context.user_data["choice"]
-        guild_id = int(os.getenv("GUILD_ID"))
+        guild_id = context.user_data["discord guild"]
         guild_name = await self.discord_bot.get_guild(guild_id)
 
         # Check if user-entered data exists on Discord
@@ -275,7 +293,7 @@ class TelegramBot:
         elif category == "discord channels":
             check = None # TODO: await self.discord_bot.get_channel(guild_id, text)
         elif category == "discord guild":
-            check = None # TODO: await self.discord_bot.get_guild(text)
+            check = await self.discord_bot.get_guild(text)
         elif category == "discord roles":
             roles = await self.discord_bot.get_guild_roles(guild_id)
             check = True if text in roles else None

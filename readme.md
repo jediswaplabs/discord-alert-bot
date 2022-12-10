@@ -21,9 +21,8 @@ requirements afterwards using `pip`:
 ```
 pip install -r requirements.txt
 ```
-
-If you're using [anaconda](https://www.anaconda.com), you can create a virtual environment and install the
-requirements using this code:
+The bot relies on a pre-release of [python-telegram-bot](https://docs.python-telegram-bot.org/en/v20.0a6/),
+so if installing packages manually using `pip`, the `--pre` flag will be necessary ([see here](https://docs.python-telegram-bot.org/en/v20.0a6/)). If you're using [anaconda](https://www.anaconda.com), you can create a virtual environment and install all requirements using this code:
 
 ```
 conda create -n discord-alert-bot python=3.9
