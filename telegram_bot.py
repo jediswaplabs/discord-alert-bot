@@ -93,7 +93,7 @@ class TelegramBot:
 
     async def add_placeholders(self, update, context) -> None:
         """Helper function to create some user_data entries."""
-        guild = int(os.getenv("GUILD_ID"))
+        guild = int(os.getenv("DEFAULT_GUILD"))
         context.user_data["discord roles"] = set()
         context.user_data["discord channels"] = set()
         context.user_data["discord guild"] = guild
@@ -183,7 +183,7 @@ class TelegramBot:
         """Discord roles menu"""
 
         context.user_data["choice"] = "discord roles"
-        guild_id = int(os.getenv("GUILD_ID"))
+        guild_id = context.user_data["discord guild"]
 
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
         if "discord handle" not in context.user_data:
@@ -225,11 +225,27 @@ class TelegramBot:
         """Ask the user for info about the selected predefined choice."""
         # TODO
         context.user_data["choice"] = "discord guild"
-        msg = "For now, the guild is predetermined."
-        reply_text = self.under_construction_msg(custom_msg=msg)
-        await update.message.reply_text(reply_text)
+        current_guild = int(context.user_data["discord guild"])
+        default_guild = int(os.getenv("DEFAULT_GUILD"))
+        guild_name = await self.discord_bot.get_guild(current_guild)
 
-        del context.user_data["choice"]
+        reply_text = (
+            f"Currently the bot is set up for:\n\n\t*{guild_name.name}*\n\t(ID {str(current_guild)})\n\n"
+        )
+        if current_guild == default_guild: reply_text += "This is the default setup. "
+        reply_text += (
+            "\nTo change, please enter a valid Discord guild ID ( = server ID)."
+            " See [instructions](https://support.discord.com/hc/en-us/articles/"
+            "206346498-Where-can-I-find-my-User-Server-Message-ID-) for help on finding it."
+            "\nOr hit /menu to leave the current guild unchanged."
+        )
+
+        await update.message.reply_text(
+            reply_text,
+            disable_web_page_preview=True,
+            parse_mode="Markdown")
+
+        #del context.user_data["choice"]
         return self.TYPING_REPLY
 
 
@@ -266,7 +282,7 @@ class TelegramBot:
 
         text = update.message.text
         category = context.user_data["choice"]
-        guild_id = int(os.getenv("GUILD_ID"))
+        guild_id = context.user_data["discord guild"]
         guild_name = await self.discord_bot.get_guild(guild_id)
 
         # Check if user-entered data exists on Discord
@@ -275,7 +291,10 @@ class TelegramBot:
         elif category == "discord channels":
             check = None # TODO: await self.discord_bot.get_channel(guild_id, text)
         elif category == "discord guild":
-            check = None # TODO: await self.discord_bot.get_guild(text)
+            if text.isdigit():
+                check = await self.discord_bot.get_guild(int(text))
+            else:
+                check = None    # Guild ID has to consist of numbers only
         elif category == "discord roles":
             roles = await self.discord_bot.get_guild_roles(guild_id)
             check = True if text in roles else None
@@ -286,7 +305,14 @@ class TelegramBot:
         if check == None:
 
             if category == "discord guild":
-                reply_text = f"No guild found on Discord with id {text}."
+                reply_text = (
+                    f"No guild found on Discord with ID {text}."
+                    " Please make sure the entered ID is correct and the bot"
+                    " has been [added to the Discord guild](https://www.howtogeek.com/"
+                    "744801/how-to-add-a-bot-to-discord/) using [this](https://discord."
+                    "com/oauth2/authorize?client_id=1031609181700104283&scope=bot&permissions"
+                    "=1024) invite link."
+                )
 
             else:
                 guild_name = await self.discord_bot.get_guild(guild_id)
@@ -294,11 +320,16 @@ class TelegramBot:
 
             cat = category.replace("discord", "Discord").rstrip("s")
             reply_text += f"\nPlease enter a valid {cat} or go back to /menu."
-            await update.message.reply_text(reply_text)
+
+            await update.message.reply_text(
+                reply_text,
+                disable_web_page_preview=True,
+                parse_mode="Markdown"
+                )
 
             return self.TYPING_REPLY
 
-        # Updating database
+        # Else: Update database with entered information
 
         # Possibility: No entry yet under this key -> Create entry if in allow_list
         allow_list = ["discord handle", "discord guild"]
