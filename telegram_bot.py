@@ -136,11 +136,24 @@ class TelegramBot:
                 "~~~~~~~~~~~~~~~~~~~~~~\n\n"
                 "Current active notifications:\n"
             )
+
             reply_text += self.parse_str(active_notifications)
+
+            # Show Discord channel restirictions if any channels are set up
+            if user_data["discord channels"] != set():
+
+                reply_text += "\nWill only notify if mentioned in channel"
+                if len(user_data["discord channels"]) > 1: reply_text += "s"
+                reply_text += f"\n{user_data['discord channels']}\n"
+
             reply_text += "\n~~~~~~~~~~~~~~~~~~~~~~\n"
 
         # Possibility: New user -> show explainer & button menu
         else:
+            # Add "guild", "roles", "channels" keys to user data
+            await self.add_placeholders(update, context)
+            await asyncio.sleep(2)    # Prevent KeyErrors with very fast users
+
             reply_text = (
                 "Hello!\n\n"
                 "To receive a notification whenever your Discord handle is mentioned,"
@@ -311,17 +324,19 @@ class TelegramBot:
 
             # Refresh Discord bot to propagate changes
             await self.refresh_discord_bot()
-            await isyncio.sleep(5)
+            await asyncio.sleep(4)
 
         # Notify user
-
         await update.message.reply_text(reply_text)
 
         return ConversationHandler.END
 
 
     async def received_information(self, update, context) -> int:
-        """Store info provided by user and reply with message."""
+        """
+        Checks if info provided by user points to existing data on Discord.
+        Stores information if valid, requests re-entry if not.
+        """
 
         text = update.message.text
         category = context.user_data["choice"]
@@ -411,7 +426,7 @@ class TelegramBot:
             "Success! Your data so far:"
             f"\n{self.parse_str(context.user_data)}\n"
             " If the changes don't show up under 'Current active notifications'"
-            " yet, please allow the bot a minute to refresh, then hit /menu again."
+            " yet, please allow the bot about 30s, then hit /menu again."
         )
         await update.message.reply_text(success_msg, reply_markup=self.markup)
 

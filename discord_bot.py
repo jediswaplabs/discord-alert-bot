@@ -30,6 +30,9 @@ class DiscordBot:
         self.listening_to = {"handles": set(), "roles": set()}
         # Reverse lookup {"handles": {discord username: {telegram id, telegram id}}
         self.discord_telegram_map = {"handles": {}, "roles": {}}
+        # Dict to store whitelisted channels per TG_id if user has specified any
+        self.channel_whitelist = {}
+
         # Dictionary {telegram id: {data}}
         self.users = dict()
         # Path to shared database (data entry via telegram_bot.py)
@@ -38,24 +41,24 @@ class DiscordBot:
 
 
     async def refresh_data(self) -> None:
-        """
-        Populates/updates users, listening_to, discord_telegram_map.
-        """
+        """Populates/updates users, listening_to, discord_telegram_map."""
         # Reload database from file. Skip all if no file created yet.
         try:
             self.users = read_pickle(self.data_path)["user_data"]
         except FileNotFoundError:
-            return
+            return    # Pickle file will be created automatically
 
         log('discord_bot.refresh_data(self): self.users right now:', self.users)
 
-        # Wipe listening_to and discord_telegram_map
+        # Wipe listening_to, discord_telegram_map, channel_whitelist
         self.listening_to = {"handles": set(), "roles": set()}
         self.discord_telegram_map = {"handles": {}, "roles": {}}
+        self.channel_whitelist = {}
 
         # Repopulate sets of notification triggers and reverse lookups
         for k, v in self.users.items():
             TG_id = k
+
             # Add Discord handles to set of notification triggers
             if "discord handle" in v:
                 handle = v["discord handle"]
@@ -75,9 +78,14 @@ class DiscordBot:
                         self.discord_telegram_map["roles"][role] = set()
                     self.discord_telegram_map["roles"][role].add(TG_id)
 
+            # Add Discord channels to channel whitelist
+            if "discord channels" in v:
+                self.channel_whitelist[k] = v["discord channels"]
+
         log(f"discord_bot:\nData updated from Pickle file:\n{self.users}")
         log(f"listening_to:\n{self.listening_to}")
         log(f"discord_telegram_map:\n{self.discord_telegram_map}")
+        log(f"channel_whitelist:\n{self.channel_whitelist}")
 
 
     async def send_to_TG(self, telegram_user_id, msg) -> None:
@@ -177,6 +185,7 @@ class DiscordBot:
             for trigger, id_set in trigger_dict.items():
                 if TG_id in id_set:
                     d[category].add(trigger)
+                               
         return d
 
 
@@ -206,13 +215,15 @@ class DiscordBot:
 
             log(f"Discord message -> {message}")
             log(f"message.mentions -> {message.mentions}")
-            log(f"message.guild.channels -> {message.guild.channels}")
+            log(f"message.channel.name -> {message.channel.name}")
             line = "\n"+("~"*22)+"\n"
 
             # If no user mentions in message -> Skip this part
             if message.mentions != []:
 
                 log(f"USER MENTIONS IN MESSAGE: {message.mentions}")
+                channel = message.channel.name
+                whitelist = self.channel_whitelist
 
                 # User mentions: Forward to TG as specified in lookup dict
                 for username in self.listening_to["handles"]:
@@ -228,13 +239,23 @@ class DiscordBot:
                         out_msg = line+header+contents+"\n"+line
                         TG_ids = self.discord_telegram_map["handles"][username]
 
+                        # Forward to user if no channels are specified or channel is in whitelist
                         for _id in TG_ids:
-                            await self.send_to_TG(_id, out_msg)
+
+                            if whitelist[_id] == set():
+                                await self.send_to_TG(_id, out_msg)
+
+                            else:
+                                if channel in whitelist[_id]:
+                                    await self.send_to_TG(_id, out_msg)
+
 
             # If no role mentions in message -> Skip this part
             if message.role_mentions != []:
 
                 log(f"ROLE MENTIONS IN MESSAGE: {message.role_mentions}")
+                channel = message.channel.name
+                whitelist = self.channel_whitelist
                 rolenames = [x.name for x in message.role_mentions]
 
                 # Role mentions: Forward to TG as specified in lookup dict
@@ -250,8 +271,15 @@ class DiscordBot:
                         out_msg = line+header+contents+"\n"+line
                         TG_ids = self.discord_telegram_map["roles"][role]
 
+                        # Forward to user if no channels are specified or channel is in whitelist
                         for _id in TG_ids:
-                            await self.send_to_TG(_id, out_msg)
+
+                            if whitelist[_id] == set():
+                                await self.send_to_TG(_id, out_msg)
+
+                            else:
+                                if channel in whitelist[_id]:
+                                    await self.send_to_TG(_id, out_msg)
 
                 # DONE: Have bot also check for mentioned roles
                 # DONE: Improved & less logging
