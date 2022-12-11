@@ -7,9 +7,8 @@ Send /start to initiate the conversation on Telegram. Press Ctrl-C on the
 command line to stop the bot.
 """
 
-import logging, os, random
+import logging, os, random, asyncio
 from helpers import log
-import asyncio
 from typing import Dict
 from dotenv import load_dotenv
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
@@ -271,8 +270,8 @@ class TelegramBot:
             await self.refresh_discord_bot()
 
         # Notify user
+        isyncio.sleep(3)
         await update.message.reply_text(reply_text)
-        if "choice" in context.user_data: del context.user_data["choice"]
 
         return ConversationHandler.END
 
