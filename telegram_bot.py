@@ -258,6 +258,7 @@ class TelegramBot:
                 " Back to /menu"
             )
         else:
+            await update.message.reply_text("Please wait...")
             for k in context.user_data.copy().keys():
                 del context.user_data[k]
 
@@ -268,9 +269,10 @@ class TelegramBot:
 
             # Refresh Discord bot to propagate changes
             await self.refresh_discord_bot()
+            await isyncio.sleep(5)
 
         # Notify user
-        isyncio.sleep(3)
+
         await update.message.reply_text(reply_text)
 
         return ConversationHandler.END
