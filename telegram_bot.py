@@ -331,21 +331,21 @@ class TelegramBot:
         # Check if user-entered data exists on Discord
         if category == "discord handle":
             check = await self.discord_bot.get_user(guild_id, text)
-        elif category == "discord channels":
-            #channel_id = text # <- get channel id from channel name somehow
-            #check = await self.discord_bot.get_channel(guild_id, channel_id)
 
-            # TODO: check against all text channels on this guild.
-            check = None
+        elif category == "discord channels":
+            channels_available = await self.discord_bot.get_channels(guild_id)
+            check = True if text in channels_available else None
 
         elif category == "discord guild":
             if text.isdigit():
                 check = await self.discord_bot.get_guild(int(text))
             else:
                 check = None    # Guild ID has to consist of numbers only
+
         elif category == "discord roles":
             roles = await self.discord_bot.get_guild_roles(guild_id)
             check = True if text in roles else None
+
         else:
             check = True
 
@@ -367,8 +367,9 @@ class TelegramBot:
                 reply_text = f"{text} doesn't seem to exist on {guild_name}."
 
             if category == "discord channels":
-                reply_text += f"\nPlease enter a text channel from this list or go back to /menu:."
-                # TODO: Show list of channels again
+                reply_text += f" Please choose a text channel from this list or go back to /menu."
+                reply_text += iter_to_str(channels_available)
+
             else:
                 cat = category.replace("discord", "Discord").rstrip("s")
                 reply_text += f"\nPlease enter a valid {cat} or go back to /menu."
@@ -381,7 +382,7 @@ class TelegramBot:
 
             return self.TYPING_REPLY
 
-        # Else: Update database with entered information
+        # If valid data -> Update database with entered information
 
         # Possibility: No entry yet under this key -> Create entry if in allow_list
         allow_list = ["discord handle", "discord guild"]
@@ -410,7 +411,7 @@ class TelegramBot:
             "Success! Your data so far:"
             f"\n{self.parse_str(context.user_data)}\n"
             " If the changes don't show up under 'Current active notifications'"
-            " yet, please allow a minute, then hit /menu again."
+            " yet, please allow the bot a minute to refresh, then hit /menu again."
         )
         await update.message.reply_text(success_msg, reply_markup=self.markup)
 
