@@ -222,10 +222,14 @@ class TelegramBot:
 
     async def discord_guild(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
-        # TODO
         context.user_data["choice"] = "discord guild"
-        current_guild = int(context.user_data["discord guild"])
         default_guild = int(os.getenv("DEFAULT_GUILD"))
+
+        # Prevent KeyError for new users
+        if "discord guild" not in context.user_data:
+            context.user_data["discord guild"] = default_guild
+
+        current_guild = int(context.user_data["discord guild"])
         guild_name = await self.discord_bot.get_guild(current_guild)
 
         reply_text = (
