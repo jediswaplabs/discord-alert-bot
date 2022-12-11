@@ -101,8 +101,17 @@ class DiscordBot:
 
 
     async def get_guild(self, guild_id) -> discord.Guild:
-        """Takes guild id, returns guild object or None if not found."""
+        """Takes guild id, [converts to int,] returns guild object or None if not found."""
+        if isinstance(guild_id, str):
+            if guild_id.isdigit():
+                guild_id = int(guild_id)
         return self.client.get_guild(guild_id)
+
+
+    async def get_channel(self, guild_id, channel_id) -> discord.abc.GuildChannel:
+        """Takes channel id, returns channel object or None if not found."""
+        guild = await self.get_guild(guild_id)
+        return guild.get_channel(channel_id)
 
 
     async def get_user(self, guild_id, username) -> discord.User:
@@ -117,15 +126,29 @@ class DiscordBot:
         return [x.name for x in guild.roles]
 
 
-    async def get_roles(self, discord_username, guild_id) -> list:
-        """Takes a Discord username, returns all user's roles in current guild."""
+    async def get_user_roles(self, discord_username, guild_id) -> list:
+        """Takes a Discord username, returns all user's role names in current guild."""
         guild = await self.get_guild(guild_id)
-        guild_name = guild.name
         user = guild.get_member_named(discord_username)
         roles = [role.name for role in user.roles]
-        log(f"get_roles(): Got these roles for {discord_username}: {roles}")
+        log(f"get_user_roles(): Got these roles for {discord_username}: {roles}")
 
         return roles
+
+
+    async def get_channels(self, guild_id) -> list:
+        """Takes a guild ID, returns all text channel names of this guild."""
+        out_channels = []
+        guild = await self.get_guild(guild_id)
+        channels = guild.channels
+
+        # Filter out anything but text channels
+        for channel in channels:
+            if channel.category:
+                if channel.category.name == 'Text Channels':
+                    out_channels.append(channel.name)
+
+        return out_channels
 
 
     def get_listening_to(self, TG_id) -> dict:
@@ -183,6 +206,7 @@ class DiscordBot:
 
             log(f"Discord message -> {message}")
             log(f"message.mentions -> {message.mentions}")
+            log(f"message.guild.channels -> {message.guild.channels}")
             line = "\n"+("~"*22)+"\n"
 
             # If no user mentions in message -> Skip this part

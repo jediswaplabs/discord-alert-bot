@@ -5,7 +5,7 @@ This file contains contains helper functions callable by any of the 2 bots.
 import logging
 
 
-def log(msg, level="INFO"):
+def log(msg, level="INFO") -> None:
     msg = (75*"~")+"\n"+msg+"\n"+(75*"~")+"\n"
     if level == 'INFO':
         logging.info(msg)
@@ -13,7 +13,7 @@ def log(msg, level="INFO"):
         logging.debug(msg)
 
 
-def return_pretty(d, len_lines=None):
+def return_pretty(d, len_lines=None) -> str:
     """Some custom string formatting for dictionaries. Skips empty entries."""
     lines = []
     for k,v in d.items():
@@ -27,3 +27,10 @@ def return_pretty(d, len_lines=None):
     lines.insert(0, line), lines.append(line)
 
     return '\n'.join(lines)
+
+
+def iter_to_str(iterable, ignore_list=[], prefix="\n\n", suffix="\n\n") -> str:
+    """Parses iterable to string, one entry per line."""
+    iterable = [str(x) for x in iterable if x not in ignore_list]
+    contents = "\n".join(iterable)
+    return str(prefix+contents+suffix)

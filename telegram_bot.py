@@ -8,7 +8,7 @@ command line to stop the bot.
 """
 
 import logging, os, random, asyncio
-from helpers import log
+from helpers import log, iter_to_str
 from typing import Dict
 from dotenv import load_dotenv
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
@@ -65,10 +65,10 @@ class TelegramBot:
         await self.discord_bot.run_bot()
 
 
-    def parse_str(self, user_data: Dict[str, str]) -> str:
+    def parse_str(self, user_data) -> str:
         """Helper function for formatting the gathered user info."""
         out_list = []
-        # Only show non-null values
+        # Only show non-empty values
         for key, value in user_data.items():
             if value not in [set(), [], None, ""]:
                 out_list.append(f"{key} - {value}")
@@ -187,22 +187,20 @@ class TelegramBot:
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
         if "discord handle" not in context.user_data:
             log("DISCORD HANDLE CHECK: NO KEY FOUND")
-            reply_text = "Please enter a Discord username first!"
-            await update.message.reply_text(reply_text)
+            await update.message.reply_text("Please enter a Discord username first!")
             return await self.discord_handle(update, context)
 
         log("DISCORD HANDLE CHECK: KEY FOUND")
         discord_handle = context.user_data["discord handle"]
         guild_name = await self.discord_bot.get_guild(guild_id)
-        roles_available = await self.discord_bot.get_roles(discord_handle, guild_id)
+        roles_available = await self.discord_bot.get_user_roles(discord_handle, guild_id)
 
-        reply_text = (
-            f"On {guild_name}, these are the roles which are available to you:"
-            f"\n{roles_available}\n"
-            f"Please enter the name of a role you would like to receive "
-            f"notifications for:"
+        reply_text = f"On {guild_name}, these are the roles which are available to you:"
+        reply_text += iter_to_str(roles_available)
+        reply_text += (
+            f"Please enter the name of a role you would like"
+            " to receive notifications for:"
         )
-
         await update.message.reply_text(reply_text)
 
         return self.TYPING_REPLY
@@ -210,8 +208,48 @@ class TelegramBot:
 
     async def discord_channels(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
-        # TODO
+
         context.user_data["choice"] = "discord channels"
+        guild_id = context.user_data["discord guild"]
+        log(
+            f"GOT THIS GUILD ID: {guild_id}"
+            f"TYPE: {type(guild_id)}"
+        )
+
+        # Possibility: No Discord username is set yet. Forward to username prompt instead.
+        if "discord handle" not in context.user_data:
+            log("DISCORD HANDLE CHECK: NO KEY FOUND")
+            await update.message.reply_text("Please enter a Discord username first!")
+            return await self.discord_handle(update, context)
+
+        # Parse message prompting for user input & send out
+        log("DISCORD HANDLE CHECK: KEY FOUND")
+        guild_name = await self.discord_bot.get_guild(guild_id)
+        channels_available = await self.discord_bot.get_channels(guild_id)
+
+        reply_text = f"Available channels on {guild_name}:"
+        reply_text += iter_to_str(channels_available)
+
+        if context.user_data["discord channels"] == set():
+            reply_text += "Currently you're getting notifications for"
+            reply_text += f" all channels on {guild_name}.\n\n"
+
+        else:
+            reply_text += "Currently your notifications are restricted to"
+            reply_text += f" messages sent on these channels:."
+            reply_text += iter_to_str(context.user_data["discord channels"])
+
+        reply_text += (
+            f"Hit /menu to leave it at that or alternatively enter a channel from the above"
+            " list you would like to restrict the notifications to:"
+        )
+
+        await update.message.reply_text(reply_text)
+
+        return self.TYPING_REPLY
+
+
+
 
         reply_text = self.under_construction_msg()
         await update.message.reply_text(reply_text)
@@ -237,7 +275,7 @@ class TelegramBot:
         )
         if current_guild == default_guild: reply_text += "This is the default setup. "
         reply_text += (
-            "\nTo change, please enter a valid Discord guild ID ( = server ID)."
+            "To change, please enter a valid Discord guild ID ( = server ID)."
             " See [instructions](https://support.discord.com/hc/en-us/articles/"
             "206346498-Where-can-I-find-my-User-Server-Message-ID-) for help on finding it."
             "\nOr hit /menu to leave the current guild unchanged."
@@ -294,7 +332,12 @@ class TelegramBot:
         if category == "discord handle":
             check = await self.discord_bot.get_user(guild_id, text)
         elif category == "discord channels":
-            check = None # TODO: await self.discord_bot.get_channel(guild_id, text)
+            #channel_id = text # <- get channel id from channel name somehow
+            #check = await self.discord_bot.get_channel(guild_id, channel_id)
+
+            # TODO: check against all text channels on this guild.
+            check = None
+
         elif category == "discord guild":
             if text.isdigit():
                 check = await self.discord_bot.get_guild(int(text))
@@ -323,8 +366,12 @@ class TelegramBot:
                 guild_name = await self.discord_bot.get_guild(guild_id)
                 reply_text = f"{text} doesn't seem to exist on {guild_name}."
 
-            cat = category.replace("discord", "Discord").rstrip("s")
-            reply_text += f"\nPlease enter a valid {cat} or go back to /menu."
+            if category == "discord channels":
+                reply_text += f"\nPlease enter a text channel from this list or go back to /menu:."
+                # TODO: Show list of channels again
+            else:
+                cat = category.replace("discord", "Discord").rstrip("s")
+                reply_text += f"\nPlease enter a valid {cat} or go back to /menu."
 
             await update.message.reply_text(
                 reply_text,
@@ -352,8 +399,6 @@ class TelegramBot:
             log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
             context.user_data[category] = text.lower()
 
-
-
         # TODO: If coming from roles or channels: Ask if another should be added
         del context.user_data["choice"]
         log(f"RECEIVED INFORMATION:\n\ntext: {text}\ncategory: {category}")
@@ -361,11 +406,13 @@ class TelegramBot:
         # Relay changes to Discord bot
         await self.refresh_discord_bot()
 
-        await update.message.reply_text(
+        success_msg = (
             "Success! Your data so far:"
-            f"\n{self.parse_str(context.user_data)}\n\n",
-            reply_markup=self.markup,
+            f"\n{self.parse_str(context.user_data)}\n"
+            " If the changes don't show up under 'Current active notifications'"
+            " yet, please allow a minute, then hit /menu again."
         )
+        await update.message.reply_text(success_msg, reply_markup=self.markup)
 
         return await self.start(update, context)
 
@@ -432,7 +479,6 @@ class TelegramBot:
             entry_points=[
                 CommandHandler("start", self.start),
                 CommandHandler("menu", self.start),
-                CommandHandler("back", self.start)
             ],
             states={
                 self.CHOOSING: [
