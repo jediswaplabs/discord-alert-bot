@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-This script is running a Telegram bot and a Discord bot asynchronously
-within the same event loop. In general, the Telegram bot is used as a
-frontend to write user data to the db, from which the Discord bot is only
-reading data to update notification triggers on Discord.
+This script is running a Telegram bot and a Discord bot asynchronously within
+the same event loop. In general, the Telegram bot is used as a frontend for
+user data entry. The Discord bot is only ever reading data, updating its
+notification triggers accordingly and listening to Discord events.
 Written by Al Matty - github.com/al-matty
 """
 
@@ -21,12 +21,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# initialize bots & insert Discord bot instance into TG bot
+# Instantiate bots
 disc_bot = DiscordBot()
 tg_bot = TelegramBot(disc_bot)
 
-# Initialize Telegram bot. Discord bot gets initialized from event loop started
-# from within TG bot
+# Initialize Telegram bot. Discord bot gets initialized from within TG bot instance
 asyncio.run(tg_bot.run())
 
 

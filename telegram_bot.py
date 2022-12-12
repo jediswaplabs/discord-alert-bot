@@ -26,9 +26,7 @@ load_dotenv("./.env")
 
 
 class TelegramBot:
-    """
-    A class to encapsulate all relevant methods of the Telegram bot.
-    """
+    """A class to encapsulate all relevant methods of the Telegram bot."""
 
     def __init__(self, discord_bot_instance):
         """
@@ -36,7 +34,7 @@ class TelegramBot:
         """
         # The single data file the bot is using
         self.data_path = "./data"
-        # Discord bot instance (set from outside this scope)
+        # Discord bot instance
         self.discord_bot = discord_bot_instance
 
         # Set up conversation states & inline keyboard
@@ -47,7 +45,6 @@ class TelegramBot:
             ["Delete my data", "Done"]
         ]
         self.markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
-        # Application be initiated later for access from within every function
         self.application = None
 
 
@@ -81,7 +78,6 @@ class TelegramBot:
         if custom_msg:
             reply = "🚧 "*8+"\n\n" + custom_msg + "\n\n"+"🚧 "*8
             reply += "\n\nBack to /menu or /done."
-
         else:
             reply = (
                 "🚧 "*8+"\n\n\t...under construction...\n\n"+"🚧 "*8+ \
@@ -109,7 +105,7 @@ class TelegramBot:
 
         # Add missing user_data keys if not existing yet
         if user_data and not all(x in user_data for x in check_keys):
-            # Add "guild", "roles", "channels" keys to user data
+            # Add missing keys to user data
             await self.add_placeholders(update, context)
 
         # Possibility: Known user -> show active notifications & button menu
@@ -128,7 +124,6 @@ class TelegramBot:
                 )
                 # Send out message & end it here
                 await update.message.reply_text(reply_text, reply_markup=self.markup)
-
                 return self.CHOOSING
 
             # Possibility: At least one active notification trigger
@@ -167,7 +162,6 @@ class TelegramBot:
 
         # Send out message
         await update.message.reply_text(reply_text, reply_markup=self.markup)
-
         return self.CHOOSING
 
 
@@ -187,7 +181,6 @@ class TelegramBot:
             f"my account -> username."
         )
         await update.message.reply_text(reply_text)
-
         return self.TYPING_REPLY
 
 
@@ -215,7 +208,6 @@ class TelegramBot:
             " to receive notifications for:"
         )
         await update.message.reply_text(reply_text)
-
         return self.TYPING_REPLY
 
 
@@ -258,16 +250,6 @@ class TelegramBot:
         )
 
         await update.message.reply_text(reply_text)
-
-        return self.TYPING_REPLY
-
-
-
-
-        reply_text = self.under_construction_msg()
-        await update.message.reply_text(reply_text)
-
-        del context.user_data["choice"]
         return self.TYPING_REPLY
 
 
@@ -299,7 +281,6 @@ class TelegramBot:
             disable_web_page_preview=True,
             parse_mode="Markdown")
 
-        #del context.user_data["choice"]
         return self.TYPING_REPLY
 
 
@@ -324,11 +305,10 @@ class TelegramBot:
 
             # Refresh Discord bot to propagate changes
             await self.refresh_discord_bot()
-            await asyncio.sleep(4)
+            await asyncio.sleep(2.5)
 
         # Notify user
         await update.message.reply_text(reply_text)
-
         return ConversationHandler.END
 
 
@@ -428,15 +408,17 @@ class TelegramBot:
             " If the changes don't show up under 'Current active notifications'"
             " yet, please allow the bot about 30s, then hit /menu again."
         )
-        await update.message.reply_text(success_msg, reply_markup=self.markup)
 
+        await update.message.reply_text(success_msg, reply_markup=self.markup)
         return await self.start(update, context)
 
 
-    async def show_data(self, update, context) -> None:
-        """Display the gathered info."""
+    async def show_source(self, update, context) -> None:
+        """Display link to github."""
         await update.message.reply_text(
-            f"This is what you already told me: {self.parse_str(context.user_data)}"
+            "Collaboration welcome! -> [github](https://github.com/jediswaplabs/discord-alert-bot)"
+            "\nBack to /menu or /done.",
+            parse_mode="Markdown"
         )
 
 
@@ -468,10 +450,8 @@ class TelegramBot:
 
 
     async def run(self) -> None:
-        """
-        A custom start-up procedure to run the TG bot alongside another
-        process in the same event loop.
-        """
+        """Start-up procedure to run TG & Discord bots within the same event loop."""
+
         # Some config for the application
         config = PersistenceInput(
             bot_data=False,
@@ -529,7 +509,6 @@ class TelegramBot:
                     )
                 ],
             },
-            #fallbacks=[MessageHandler(filters.Regex("^(Done|/done)$"), self.done)],
             fallbacks=[
                 MessageHandler(
                     filters.Regex("^Done$"),
@@ -548,10 +527,10 @@ class TelegramBot:
             persistent=False
         )
 
-        # Add handlers to application
+        # Add additional handlers
         self.application.add_handler(conv_handler)
-        show_data_handler = CommandHandler("show_data", self.show_data)
-        self.application.add_handler(show_data_handler)
+        show_source_handler = CommandHandler("github", self.show_source)
+        self.application.add_handler(show_source_handler)
 
         # Run application and discord bot simultaneously & asynchronously
         async with self.application:

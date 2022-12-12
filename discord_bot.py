@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-This file contains the discord bot to be called from within telegram_bot.py.
-DiscordBot instantiates a second telegram bot for sending out the notifications
-to Telegram whenever they are triggered by a Discord message.
+In this file the DiscordBot class is defined. DiscordBot instantiates a
+telegram bot of its own to forward the Discord messages to Telegram.
 """
 
 import os, discord, logging
@@ -20,13 +19,12 @@ class DiscordBot:
     """
 
     def __init__(self):
-        """
-        Constructor of the class. Initializes some instance variables.
-        """
+        """Constructor of the class. Initializes some instance variables."""
+
         # Instantiate Telegram bot to send out messages to users
         TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
         self.telegram_bot = Bot(TELEGRAM_TOKEN)
-        # Set of Discord usernames & roles that trigger Telegram notifications (always up-to-date)
+        # Set of Discord usernames & roles that trigger Telegram notifications
         self.listening_to = {"handles": set(), "roles": set()}
         # Reverse lookup {"handles": {discord username: {telegram id, telegram id}}
         self.discord_telegram_map = {"handles": {}, "roles": {}}
@@ -41,7 +39,8 @@ class DiscordBot:
 
 
     async def refresh_data(self) -> None:
-        """Populates/updates users, listening_to, discord_telegram_map."""
+        """Updates from pickle: users, listening_to, discord_telegram_map, channel_whitelist."""
+
         # Reload database from file. Skip all if no file created yet.
         try:
             self.users = read_pickle(self.data_path)["user_data"]
@@ -82,22 +81,23 @@ class DiscordBot:
             if "discord channels" in v:
                 self.channel_whitelist[k] = v["discord channels"]
 
-        log(f"discord_bot:\nData updated from Pickle file:\n{self.users}")
-        log(f"listening_to:\n{self.listening_to}")
-        log(f"discord_telegram_map:\n{self.discord_telegram_map}")
-        log(f"channel_whitelist:\n{self.channel_whitelist}")
+        log(
+            f"\nDATA READ FROM PICKLE FILE:\n{self.users}\n\n"
+            f"\nlistening_to:\t\t{self.listening_to}"
+            f"\ndiscord_telegram_map:\t{self.discord_telegram_map}"
+            f"\nchannel_whitelist:\t{self.channel_whitelist}\n"
+        )
 
-
-    async def send_to_TG(self, telegram_user_id, msg) -> None:
+    async def send_to_TG(self, telegram_user_id, msg, parse_mode='Markdown') -> None:
         """
         Sends a message a specific Telegram user id.
-        Uses Markdown V1 for inline link capability.
+        Defaults to Markdown V1 for inline link capability.
         """
         await self.telegram_bot.send_message(
             chat_id=telegram_user_id,
             text=msg,
             disable_web_page_preview=True,
-            parse_mode="Markdown"
+            parse_mode=parse_mode
             )
 
 
@@ -160,10 +160,7 @@ class DiscordBot:
 
 
     def get_listening_to(self, TG_id) -> dict:
-        """
-        Takes a TG username, returns whatever this user gets notifications for
-        currently.
-        """
+        """Takes a TG username, returns whatever this user gets notifications for currently."""
         _map = self.discord_telegram_map
         handles_active = {k for k, v in _map["handles"].items() if TG_id in v}
         roles_active = {k for k, v in _map["roles"].items() if TG_id in v}
@@ -185,12 +182,12 @@ class DiscordBot:
             for trigger, id_set in trigger_dict.items():
                 if TG_id in id_set:
                     d[category].add(trigger)
-                               
         return d
 
 
     async def run_bot(self) -> None:
         """Actual logic of the bot is stored here."""
+
         # Update data to listen to at startup
         await self.refresh_data()
 
@@ -209,7 +206,7 @@ class DiscordBot:
             msg = "Discord bot is up & running!\nHit /menu to begin."
             await self.send_to_all(msg)
 
-        # Actions taken on every new Discord message
+        # Actions taken for every new Discord message
         @client.event
         async def on_message(message):
 
@@ -241,10 +238,8 @@ class DiscordBot:
 
                         # Forward to user if no channels are specified or channel is in whitelist
                         for _id in TG_ids:
-
                             if whitelist[_id] == set():
                                 await self.send_to_TG(_id, out_msg)
-
                             else:
                                 if channel in whitelist[_id]:
                                     await self.send_to_TG(_id, out_msg)
@@ -273,21 +268,18 @@ class DiscordBot:
 
                         # Forward to user if no channels are specified or channel is in whitelist
                         for _id in TG_ids:
-
                             if whitelist[_id] == set():
                                 await self.send_to_TG(_id, out_msg)
-
                             else:
                                 if channel in whitelist[_id]:
                                     await self.send_to_TG(_id, out_msg)
 
                 # DONE: Have bot also check for mentioned roles
                 # DONE: Improved & less logging
-                # TODO: Have bot listen to specified subset of channels only
+                # DONE: Have bot listen to specified subset of channels only
                 # TODO: Check behavior with multiple bot instances open at once
                 # TODO: Check behavior with bot on multiple servers simultaneously
 
 
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-        #client.run(DISCORD_TOKEN)
         await client.start(DISCORD_TOKEN)
