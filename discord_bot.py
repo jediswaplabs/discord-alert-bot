@@ -14,9 +14,7 @@ load_dotenv()
 
 
 class DiscordBot:
-    """
-    A class to encapsulate all relevant methods of the Discord bot.
-    """
+    """A class to encapsulate all relevant methods of the Discord bot."""
 
     def __init__(self):
         """Constructor of the class. Initializes some instance variables."""
@@ -275,7 +273,7 @@ class DiscordBot:
                                     await self.send_to_TG(_id, out_msg)
 
                 # DONE: Have bot also check for mentioned roles
-                # DONE: Improved & less logging
+                # DONE: Less logging
                 # DONE: Have bot listen to specified subset of channels only
                 # TODO: Check behavior with multiple bot instances open at once
                 # TODO: Check behavior with bot on multiple servers simultaneously

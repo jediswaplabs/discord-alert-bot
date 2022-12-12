@@ -39,7 +39,7 @@ Run `main.py` to start the bot.
 python main.py
 ```
 
-On Telegram, start a conversation with _@DiscordAlertsBot_ to set up notifications.
+On Telegram, start a conversation with [@DiscordAlertsBot](https://t.me/DiscordAlertsBot) to set up notifications.
 
 ## License
 
