@@ -205,7 +205,7 @@ class TelegramBot:
         reply_text += iter_to_str(roles_available)
         reply_text += (
             f"Please enter the name of a role you would like"
-            " to receive notifications for:"
+            " to receive notifications for, or hit /menu to go back."
         )
         await update.message.reply_text(reply_text)
         return self.TYPING_REPLY

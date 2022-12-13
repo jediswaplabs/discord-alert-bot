@@ -202,7 +202,7 @@ class DiscordBot:
 
             log(f"{client.user.name} has connected to Discord")
             msg = "Discord bot is up & running!\nHit /menu to begin."
-            await self.send_to_all(msg)
+            #await self.send_to_all(msg)
 
         # Actions taken for every new Discord message
         @client.event
