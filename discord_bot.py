@@ -254,7 +254,6 @@ class DiscordBot:
                 # Role mentions: Forward to TG as specified in lookup dict
                 for role in self.listening_to["roles"]:
 
-                    # probably some getter for role is needed for equality of objects
                     if role in rolenames:
 
                         log(f"MATCHED A ROLE: {message.author} mentioned {role}")
@@ -276,7 +275,7 @@ class DiscordBot:
                 # DONE: Less logging
                 # DONE: Have bot listen to specified subset of channels only
                 # TODO: Check behavior with multiple bot instances open at once
-                # TODO: Check behavior with bot on multiple servers simultaneously
+                # DONE: Multiple servers? Works. Guild(s) need to be specified via TG
 
 
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
