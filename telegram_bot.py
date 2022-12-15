@@ -383,17 +383,17 @@ class TelegramBot:
         allow_list = ["discord handle", "discord guild"]
         if (category not in context.user_data) and (category in allow_list):
             log(f"received_information():\tPOSSIBILITY 1: NO KEY FOUND -> CREATE ENTRY")
-            context.user_data[category] = text.lower()
+            context.user_data[category] = text
 
         # Possibility: Key known & points to set -> Add to set (i.e. for roles, channels)
         elif isinstance(context.user_data[category], set):
             log(f"received_information():\tPOSSIBILITY 2: ADD TO SET")
-            context.user_data[category].add(text.lower())
+            context.user_data[category].add(text)
 
         # Possibility: Key known & points to anything other than a set -> Overwrite
         else:
             log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
-            context.user_data[category] = text.lower()
+            context.user_data[category] = text
 
         # TODO: If coming from roles or channels: Ask if another should be added
         del context.user_data["choice"]
