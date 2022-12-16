@@ -8,7 +8,8 @@ command line to stop the bot.
 """
 
 import logging, os, random, asyncio
-from helpers import log, iter_to_str
+from helpers import log, iter_to_str, return_pretty
+from pandas import read_pickle
 from typing import Dict
 from dotenv import load_dotenv
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
@@ -422,6 +423,28 @@ class TelegramBot:
         )
 
 
+    async def debug(self, update, context) -> None:
+        """Display some quick data for debugging."""
+        chat_id = update.message.chat_id
+        debug_id = int(os.environ["DEBUG_ID"])
+        users = read_pickle('./data')["user_data"]
+
+        if chat_id == debug_id:
+
+            msg = ""
+
+            for TG_id, data in users.items():
+                if 'discord handle' in data:
+                    msg += f"\n\n>{data['discord handle']}< {TG_id}\n"
+                else:
+                    msg += (f"\n\n{TG_id}")
+
+                msg += return_pretty(data, len_lines=6)
+
+            msg += "/menu  |  /done  |  /github"
+            await update.message.reply_text(msg)
+
+
     async def done(self, update, context) -> int:
         """Display the gathered info and end the conversation."""
         user_data = context.user_data
@@ -529,8 +552,12 @@ class TelegramBot:
 
         # Add additional handlers
         self.application.add_handler(conv_handler)
+
         show_source_handler = CommandHandler("github", self.show_source)
+        debug_handler = CommandHandler("debug", self.debug)
+
         self.application.add_handler(show_source_handler)
+        self.application.add_handler(debug_handler)
 
         # Run application and discord bot simultaneously & asynchronously
         async with self.application:

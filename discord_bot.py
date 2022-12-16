@@ -230,7 +230,7 @@ class DiscordBot:
                         author, guild_name = message.author, message.guild.name
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"\nMentioned by {author} in {guild_name}:\n\n"
+                        header = f"\nMentioned by {author.name} in {guild_name}:\n\n"
                         out_msg = line+header+contents+"\n"+line
                         TG_ids = self.discord_telegram_map["handles"][username]
 
@@ -274,8 +274,9 @@ class DiscordBot:
                 # DONE: Have bot also check for mentioned roles
                 # DONE: Less logging
                 # DONE: Have bot listen to specified subset of channels only
-                # TODO: Check behavior with multiple bot instances open at once
                 # DONE: Multiple servers? Works. Guild(s) need to be specified via TG
+                # TODO: Check behavior with multiple bot instances open at once
+
 
 
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
