@@ -225,22 +225,41 @@ class DiscordBot:
 
                     user = message.guild.get_member_named(username)
 
+                    # Cycle through all user mentions in message
                     if user in message.mentions:
+
                         log(f"USER IN MENTIONS: {message.author} mentioned {username}")
-                        author, guild_name = message.author, message.guild.name
+                        author, guild = message.author, message.guild
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"\nMentioned by {author.name} in {guild_name}:\n\n"
+                        header = f"\nMentioned by {author.name} in {guild.name}:\n\n"
                         out_msg = line+header+contents+"\n"+line
-                        TG_ids = self.discord_telegram_map["handles"][username]
 
-                        # Forward to user if no channels are specified or channel is in whitelist
-                        for _id in TG_ids:
-                            if whitelist[_id] == set():
-                                await self.send_to_TG(_id, out_msg)
-                            else:
-                                if channel in whitelist[_id]:
+                        # Cycle through all TG ids connected to this Discord handle
+                        for _id in self.discord_telegram_map["handles"][username]:
+
+                            target_guild_id = self.users[_id]["discord guild"]
+                            log(
+                                f"GUILD CHECK: {type(guild.id)} {guild.id} =="
+                                f" {type(target_guild_id)} {target_guild_id}:"
+                                f" {guild.id == target_guild_id}"
+                            )
+
+                            # Condition 1: msg guild matches guild set up by user
+                            if guild.id == target_guild_id:
+
+                                log(
+                                    f"CHANNEL CHECK: {type(channel)} {channel} in"
+                                    f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
+                                    f"SET UP CHANNELS: {whitelist[_id]}"
+                                )
+
+                                # Condition 2: Channel matches or no channels set up
+                                if whitelist[_id] == set():
                                     await self.send_to_TG(_id, out_msg)
+                                else:
+                                    if channel in whitelist[_id]:
+                                        await self.send_to_TG(_id, out_msg)
 
 
             # If no role mentions in message -> Skip this part
@@ -257,6 +276,7 @@ class DiscordBot:
                     if role in rolenames:
 
                         log(f"MATCHED A ROLE: {message.author} mentioned {role}")
+                        guild_id = message.guild.id
                         author, guild_name = message.author, message.guild.name
                         contents = message.content[message.content.find(">")+1:]
                         header = f"Message to {role} in {guild_name}:\n\n"

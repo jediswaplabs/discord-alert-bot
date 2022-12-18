@@ -177,7 +177,8 @@ class TelegramBot:
         rand_user = rand_name+"#"+rand_i
 
         reply_text = (
-            f"Please enter your Discord username (i.e. {rand_user}). "
+            f"Please enter your Discord username with or without the discriminator"
+            f"(i.e. {rand_name} or {rand_user}). "
             f"You can find it by tapping your avatar or in settings -> "
             f"my account -> username."
         )
@@ -274,7 +275,7 @@ class TelegramBot:
             "To change, please enter a valid Discord guild ID ( = server ID)."
             " See [instructions](https://support.discord.com/hc/en-us/articles/"
             "206346498-Where-can-I-find-my-User-Server-Message-ID-) for help on finding it."
-            "\nOr hit /menu to leave the current guild unchanged."
+            " Hit /menu to go back and leave the current guild unchanged."
         )
 
         await update.message.reply_text(
@@ -333,8 +334,9 @@ class TelegramBot:
             check = True if text in channels_available else None
 
         elif category == "discord guild":
-            if text.isdigit():
-                check = await self.discord_bot.get_guild(int(text))
+            if text.isdigit():    # Convert guild ID to int
+                text = int(text)
+                check = await self.discord_bot.get_guild(text)
             else:
                 check = None    # Guild ID has to consist of numbers only
 
@@ -368,7 +370,7 @@ class TelegramBot:
 
             else:
                 cat = category.replace("discord", "Discord").rstrip("s")
-                reply_text += f"\nPlease enter a valid {cat} or go back to /menu."
+                reply_text += f" Please enter a valid {cat} or go back to /menu."
 
             await update.message.reply_text(
                 reply_text,
