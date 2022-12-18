@@ -13,7 +13,7 @@ def log(msg, level="INFO") -> None:
         logging.debug(msg)
 
 
-def return_pretty(d, len_lines=None) -> str:
+def return_pretty(d, len_lines=None, prefix="\n", suffix="\n") -> str:
     """Some custom string formatting for dictionaries. Skips empty entries."""
     lines = []
     for k,v in d.items():
@@ -26,7 +26,7 @@ def return_pretty(d, len_lines=None) -> str:
     line = '='*len_lines
     lines.insert(0, line), lines.append(line)
 
-    return '\n'.join(lines)
+    return str(prefix+'\n'.join(lines)+suffix)
 
 
 def iter_to_str(iterable, ignore_list=[], prefix="\n\n", suffix="\n\n") -> str:
