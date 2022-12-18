@@ -65,15 +65,30 @@ class DiscordBot:
                     self.discord_telegram_map["handles"][handle] = set()
                 self.discord_telegram_map["handles"][handle].add(TG_id)
 
-            # Add Discord roles to set of notification triggers
+            # Add Discord roles to set of notification triggers & reverse lookup
             if "discord roles" in v:
                 roles = v["discord roles"]
-                self.listening_to["roles"].update(roles)
-                # Add Discord roles to reverse lookup
-                for role in roles:
+
+                # Possibility: Only one role set up -> Add it to dicts
+                if isinstance(roles, str):
+                    role = roles
+
                     if role not in self.discord_telegram_map["roles"]:
                         self.discord_telegram_map["roles"][role] = set()
+
                     self.discord_telegram_map["roles"][role].add(TG_id)
+                    self.listening_to["roles"].add(role)
+
+                # Possibility: Multiple roles set up -> Add all to dicts
+                else:
+                    for role in roles:
+
+                        if role not in self.discord_telegram_map["roles"]:
+                            self.discord_telegram_map["roles"][role] = set()
+
+                        self.discord_telegram_map["roles"][role].add(TG_id)
+
+                    self.listening_to["roles"].update(roles)
 
             # Add Discord channels to channel whitelist
             if "discord channels" in v:
@@ -263,12 +278,16 @@ class DiscordBot:
 
 
             # If no role mentions in message -> Skip this part
-            if message.role_mentions != []:
+            if message.role_mentions != [] or message.mention_everyone:
 
                 log(f"ROLE MENTIONS IN MESSAGE: {message.role_mentions}")
                 channel = message.channel.name
                 whitelist = self.channel_whitelist
                 rolenames = [x.name for x in message.role_mentions]
+
+                # Add in mention of @everyone as role mention
+                if message.mention_everyone:
+                    rolenames.append('@everyone')
 
                 # Role mentions: Forward to TG as specified in lookup dict
                 for role in self.listening_to["roles"]:
@@ -276,15 +295,32 @@ class DiscordBot:
                     if role in rolenames:
 
                         log(f"MATCHED A ROLE: {message.author} mentioned {role}")
-                        guild_id = message.guild.id
-                        author, guild_name = message.author, message.guild.name
+                        author, guild = message.author, message.guild
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"Message to {role} in {guild_name}:\n\n"
+                        header = f"Message to {role} in {guild.name}:\n\n"
                         out_msg = line+header+contents+"\n"+line
-                        TG_ids = self.discord_telegram_map["roles"][role]
 
-                        # Forward to user if no channels are specified or channel is in whitelist
-                        for _id in TG_ids:
+                        # Cycle through all TG ids connected to this Discord role
+                        for _id in self.discord_telegram_map["roles"][role]:
+
+                            target_guild_id = self.users[_id]["discord guild"]
+
+                            log(
+                                f"GUILD CHECK: {type(guild.id)} {guild.id} =="
+                                f" {type(target_guild_id)} {target_guild_id}:"
+                                f" {guild.id == target_guild_id}"
+                            )
+
+                            # Condition 1: msg guild matches guild set up by user
+                            if guild.id == target_guild_id:
+
+                                log(
+                                    f"CHANNEL CHECK: {type(channel)} {channel} in"
+                                    f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
+                                    f"SET UP CHANNELS: {whitelist[_id]}"
+                                )
+
+                            # Condition 2: Channel matches or no channels set up
                             if whitelist[_id] == set():
                                 await self.send_to_TG(_id, out_msg)
                             else:

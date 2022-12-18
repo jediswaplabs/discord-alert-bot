@@ -400,7 +400,11 @@ class TelegramBot:
 
         # TODO: If coming from roles or channels: Ask if another should be added
         del context.user_data["choice"]
-        log(f"RECEIVED INFORMATION:\n\ntext: {text}\ncategory: {category}")
+
+        log(
+            f"RECEIVED INFORMATION:\n\category type: "
+            f"{type(context.user_data[category])}\ntext: {text}\ncategory: {category}"
+        )
 
         # Relay changes to Discord bot
         await self.refresh_discord_bot()
@@ -409,7 +413,7 @@ class TelegramBot:
             "Success! Your data so far:"
             f"\n{self.parse_str(context.user_data)}\n"
             " If the changes don't show up under 'Current active notifications'"
-            " yet, please allow the bot about 30s, then hit /menu again."
+            " yet, please allow the bot about 10s, then hit /menu again."
         )
 
         await update.message.reply_text(success_msg, reply_markup=self.markup)
