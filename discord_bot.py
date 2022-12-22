@@ -247,7 +247,7 @@ class DiscordBot:
                         author, guild = message.author, message.guild
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"\nMentioned by {author.name} in {guild.name}:\n\n"
+                        header = f"\nMentioned by {author.name} in [{guild.name}]({url}):\n\n"
                         out_msg = line+header+contents+"\n"+line
 
                         # Cycle through all TG ids connected to this Discord handle
@@ -295,9 +295,9 @@ class DiscordBot:
                     if role in rolenames:
 
                         log(f"MATCHED A ROLE: {message.author} mentioned {role}")
-                        author, guild = message.author, message.guild
+                        author, guild, url = message.author, message.guild, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"Message to {role} in {guild.name}:\n\n"
+                        header = f"Message to {role} in [{guild.name}]({url}):\n\n"
                         out_msg = line+header+contents+"\n"+line
 
                         # Cycle through all TG ids connected to this Discord role
