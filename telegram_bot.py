@@ -177,7 +177,7 @@ class TelegramBot:
         rand_user = rand_name+"#"+rand_i
 
         reply_text = (
-            f"Please enter your Discord username with or without the discriminator"
+            f"Please enter your Discord username with or without the discriminator "
             f"(i.e. {rand_name} or {rand_user}). "
             f"You can find it by tapping your avatar or in settings -> "
             f"my account -> username."

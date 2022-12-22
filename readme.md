@@ -18,7 +18,7 @@ _Alternatively, to run your own fully customizable version of this bot, follow t
 - [Get a Discord bot token](https://www.writebots.com/discord-bot-token/) at the Discord Developer Portal.
 - Set the bot up with the permission to view channels and add [server members intent and message content intent](https://discordpy.readthedocs.io/en/stable/intents.html#member-intent).
 - [Get a Telegram bot token.](https://riptutorial.com/telegram-bot/example/25075/create-a-bot-with-the-botfather)
-- Enter both bot tokens to the `.env` file as shown in [sample.env](https://github.com/jediswaplabs/discord-alert-bot/blob/main/sample.env). No quotes allowed in the `.env` file.
+- Enter both bot tokens to the `.env` file as shown in [sample.env](https://github.com/jediswaplabs/discord-alert-bot/blob/main/sample.env), no quotes.
 - Add your Discord server ID to the `.env` file under `DEFAULT_GUILD`.
 - Add the bot to your Discord server as shown [here](https://www.writebots.com/discord-bot-token/) or set up an [invite link](https://discordapi.com/permissions.html#66560).
 - Run `main.py`.
