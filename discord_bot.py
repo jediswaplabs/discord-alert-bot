@@ -237,7 +237,6 @@ class DiscordBot:
 
                 # User mentions: Forward to TG as specified in lookup dict
                 for username in self.listening_to["handles"]:
-
                     user = message.guild.get_member_named(username)
 
                     # Cycle through all user mentions in message
