@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 In this file the DiscordBot class is defined. DiscordBot instantiates a
-telegram bot of its own to forward the Discord messages to Telegram.
+Telegram bot of its own to forward the Discord messages to Telegram.
 """
 
 import os, discord, logging
@@ -327,12 +327,11 @@ class DiscordBot:
                                 if channel in whitelist[_id]:
                                     await self.send_to_TG(_id, out_msg)
 
-                # DONE: Have bot also check for mentioned roles
+                # DONE: Listen to role mentions
                 # DONE: Less logging
-                # DONE: Have bot listen to specified subset of channels only
+                # DONE: Listen to specified subset of channels only
                 # DONE: Multiple servers? Works. Guild(s) need to be specified via TG
-                # TODO: Check behavior with multiple bot instances open at once
-
+                # DONE: Multiple bot instances? One per token only. Can be in multiple guilds
 
 
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")

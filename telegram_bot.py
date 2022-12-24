@@ -133,7 +133,7 @@ class TelegramBot:
                 "Current active notifications:\n"
             )
 
-            reply_text += self.parse_str(active_notifications)
+            reply_text += self.parse_str(active_notifications).replace('handles', 'Handle').replace('roles', 'Roles')
 
             # Show Discord channel restirictions if any channels are set up
             if user_data["discord channels"] != set():
@@ -194,11 +194,9 @@ class TelegramBot:
 
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
         if "discord handle" not in context.user_data:
-            log("DISCORD HANDLE CHECK: NO KEY FOUND")
             await update.message.reply_text("Please enter a Discord username first!")
             return await self.discord_handle(update, context)
 
-        log("DISCORD HANDLE CHECK: KEY FOUND")
         discord_handle = context.user_data["discord handle"]
         guild_name = await self.discord_bot.get_guild(guild_id)
         roles_available = await self.discord_bot.get_user_roles(discord_handle, guild_id)
@@ -219,7 +217,7 @@ class TelegramBot:
         context.user_data["choice"] = "discord channels"
         guild_id = context.user_data["discord guild"]
         log(
-            f"GOT THIS GUILD ID: {guild_id}"
+            f"GOT GUILD ID: {guild_id}"
             f"TYPE: {type(guild_id)}"
         )
 
@@ -412,7 +410,7 @@ class TelegramBot:
         success_msg = (
             "Success! Your data so far:"
             f"\n{self.parse_str(context.user_data)}\n"
-            " If the changes don't show up under 'Current active notifications'"
+            " If the changes don't show up under 'current active notifications'"
             " yet, please allow the bot about 10s, then hit /menu again."
         )
 

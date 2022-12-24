@@ -27,9 +27,8 @@ asyncio.run(tg_bot.run())
 
 # DONE: Add botpic, about info, description
 # DONE: Implement Telegram frontend (button menu for data entry)
-# DONE: Function for users to delete their data!
+# DONE: Command for users to delete their data
 # DONE: Prompt for discord handle, roles to listen to
-# DONE: Find out best way to run both bots within 1 thread asynchronously
+# DONE: Best way to run both bots within 1 thread asynchronously?
 # TODO: As little logging as possible once debugging is done
-# TODO: Implement some way to assert that bot is not offline
-#       (i.e. call some bot function every 5 minutes & check for a reply)
+# TODO: Regular scheduled uptime checks
