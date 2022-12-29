@@ -163,19 +163,15 @@ class DiscordBot:
         guild = await self.get_guild(guild_id)
         channels = guild.channels
 
-        channel_list = []
+        # channel_list = [] # DEBUG
 
         # Filter out anything but text channels
         for channel in channels:
-            if channel.category:
+            if "text" in channel.type and "ticket" not in channel.name:
+                # channel_list.append((channel.name, channel.type)) # DEBUG
+                out_channels.append(channel.name)
 
-                if "ticket" not in str(channel.name):
-                    channel_list.append((channel.name, channel.category))
-
-                if channel.category.name == 'Text Channels':
-                    out_channels.append(channel.name)
-
-        log(f"CHANNEL_CATEGORIES: {iter_to_str(channel_list)}")
+        # log(f"CHANNEL_CATEGORIES: {iter_to_str(channel_list)}") # DEBUG
 
         return out_channels
 
