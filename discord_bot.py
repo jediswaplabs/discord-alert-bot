@@ -9,7 +9,7 @@ import os, discord, logging
 from dotenv import load_dotenv
 from telegram import Bot
 from pandas import read_pickle
-from helpers import return_pretty, log
+from helpers import return_pretty, log, iter_to_str
 load_dotenv()
 
 
@@ -163,11 +163,19 @@ class DiscordBot:
         guild = await self.get_guild(guild_id)
         channels = guild.channels
 
+        channel_list = []
+
         # Filter out anything but text channels
         for channel in channels:
             if channel.category:
+
+                if "ticket" not in str(channel.name):
+                    channel_list.append((channel.name, channel.category))
+
                 if channel.category.name == 'Text Channels':
                     out_channels.append(channel.name)
+
+        log(f"CHANNEL_CATEGORIES: {iter_to_str(channel_list)}")
 
         return out_channels
 
