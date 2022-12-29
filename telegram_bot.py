@@ -223,12 +223,10 @@ class TelegramBot:
 
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
         if "discord handle" not in context.user_data:
-            log("DISCORD HANDLE CHECK: NO KEY FOUND")
             await update.message.reply_text("Please enter a Discord username first!")
             return await self.discord_handle(update, context)
 
         # Parse message prompting for user input & send out
-        log("DISCORD HANDLE CHECK: KEY FOUND")
         guild_name = await self.discord_bot.get_guild(guild_id)
         channels_available = await self.discord_bot.get_channels(guild_id)
 
@@ -397,7 +395,12 @@ class TelegramBot:
             context.user_data[category] = text
 
         # TODO: If coming from roles or channels: Ask if another should be added
+        
         del context.user_data["choice"]
+        # If new guild has been set -> wipe roles & channels from old guild
+        if category == "discord guild" and check:
+            context.user_data["discord roles"] = set()
+            context.user_data["discord channels"] = set()
 
         log(
             f"RECEIVED INFORMATION:\n\category type: "
