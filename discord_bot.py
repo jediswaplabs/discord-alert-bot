@@ -12,6 +12,9 @@ from pandas import read_pickle
 from helpers import return_pretty, log, iter_to_str
 load_dotenv()
 
+# Set to True to receive a TG notification for any msg picked up by the bot
+DEBUG_MODE = True
+DEBUG_ID = int(os.environ["DEBUG_ID"])
 
 class DiscordBot:
     """A class to encapsulate all relevant methods of the Discord bot."""
@@ -204,6 +207,7 @@ class DiscordBot:
 
     async def run_bot(self) -> None:
         """Actual logic of the bot is stored here."""
+        global DEBUG_MODE, DEBUG_ID
 
         # Update data to listen to at startup
         await self.refresh_data()
@@ -214,18 +218,31 @@ class DiscordBot:
         intents.message_content = True
         self.client = discord.Client(intents=intents)
         client = self.client
+        signature = "| _back to /menu_ |"
 
         # Actions taken at startup
         @client.event
         async def on_ready():
 
             log(f"{client.user.name} has connected to Discord")
-            msg = "Discord bot is up & running!\nHit /menu to begin."
-            #await self.send_to_all(msg)
 
         # Actions taken for every new Discord message
         @client.event
         async def on_message(message):
+
+            # If in debugging: Send msg details to admin TG
+            if DEBUG_MODE:
+                msg = (
+                    f"\n"
+                    f"mentions: {message.mentions}\n"
+                    f"role mentions: {message.role_mentions}\n"
+                    f"channel mentions: {message.channel_mentions}\n"
+                    f"embeds: {message.embeds}\n"
+                    f"flags: {message.flags}\n"
+                    f"attachments: {message.attachments}\n"
+                    f"content: {message.content}\n"
+                )
+                await self.send_to_TG(DEBUG_ID, f"{msg}")
 
             log(f"Discord message -> {message}")
             log(f"message.mentions -> {message.mentions}")
@@ -251,7 +268,7 @@ class DiscordBot:
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
                         header = f"\nMentioned by {author.name} in {guild.name} in [{channel}]({url}):\n\n"
-                        out_msg = line+header+contents+"\n"+line
+                        out_msg = line+header+contents+"\n"+line+signature
 
                         # Cycle through all TG ids connected to this Discord handle
                         for _id in self.discord_telegram_map["handles"][username]:
@@ -302,7 +319,7 @@ class DiscordBot:
                         channel = message.channel.name
                         contents = message.content[message.content.find(">")+1:]
                         header = f"Message to {role} in {guild.name} in [{channel}]({url}):\n\n"
-                        out_msg = line+header+contents+"\n"+line
+                        out_msg = line+header+contents+"\n"+line+signature
 
                         # Cycle through all TG ids connected to this Discord role
                         for _id in self.discord_telegram_map["roles"][role]:
@@ -332,10 +349,10 @@ class DiscordBot:
                                     await self.send_to_TG(_id, out_msg)
 
                 # DONE: Listen to role mentions
-                # DONE: Less logging
                 # DONE: Listen to specified subset of channels only
                 # DONE: Multiple servers? Works. Guild(s) need to be specified via TG
                 # DONE: Multiple bot instances? One per token only. Can be in multiple guilds
+                # TODO: Even less logging
 
 
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")

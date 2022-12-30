@@ -25,7 +25,6 @@ from telegram.ext import (
 )
 load_dotenv("./.env")
 
-
 class TelegramBot:
     """A class to encapsulate all relevant methods of the Telegram bot."""
 
@@ -395,7 +394,7 @@ class TelegramBot:
             context.user_data[category] = text
 
         # TODO: If coming from roles or channels: Ask if another should be added
-        
+
         del context.user_data["choice"]
         # If new guild has been set -> wipe roles & channels from old guild
         if category == "discord guild" and check:
