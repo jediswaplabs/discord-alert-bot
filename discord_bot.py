@@ -13,7 +13,7 @@ from helpers import return_pretty, log, iter_to_str
 load_dotenv()
 
 # Set to True to receive a TG notification for any msg picked up by the bot
-DEBUG_MODE = True
+DEBUG_MODE = False
 DEBUG_ID = int(os.environ["DEBUG_ID"])
 
 class DiscordBot:
@@ -353,7 +353,7 @@ class DiscordBot:
                 # DONE: Listen to specified subset of channels only
                 # DONE: Multiple servers? Works. Guild(s) need to be specified via TG
                 # DONE: Multiple bot instances? One per token only. Can be in multiple guilds
-                # TODO: Even less logging
+                # TODO: Even less logging + Restrict file to last 24h only
 
 
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
