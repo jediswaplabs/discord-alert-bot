@@ -25,7 +25,6 @@ from telegram.ext import (
 )
 load_dotenv("./.env")
 
-
 class TelegramBot:
     """A class to encapsulate all relevant methods of the Telegram bot."""
 
@@ -217,7 +216,7 @@ class TelegramBot:
         context.user_data["choice"] = "discord channels"
         guild_id = context.user_data["discord guild"]
         log(
-            f"GOT GUILD ID: {guild_id}"
+            f"GOT GUILD ID: {guild_id} "
             f"TYPE: {type(guild_id)}"
         )
 
@@ -395,7 +394,7 @@ class TelegramBot:
             context.user_data[category] = text
 
         # TODO: If coming from roles or channels: Ask if another should be added
-        
+
         del context.user_data["choice"]
         # If new guild has been set -> wipe roles & channels from old guild
         if category == "discord guild" and check:
@@ -428,7 +427,7 @@ class TelegramBot:
             "\nBack to /menu or /done.",
             parse_mode="Markdown"
         )
-
+        return ConversationHandler.END
 
     async def debug(self, update, context) -> None:
         """Display some quick data for debugging."""
@@ -437,6 +436,24 @@ class TelegramBot:
         users = read_pickle('./data')["user_data"]
 
         if chat_id == debug_id:
+
+            guild_id = context.user_data["discord guild"]
+            guild = await self.discord_bot.get_guild(guild_id)
+            filter_out = ["category", "news", "forum"]
+
+            all_channels = [x for x in guild.channels if not any(w in x.type for w in filter_out)]
+            all_channels = [x for x in all_channels if "ticket" not in x.name]
+            all_channels = [x for x in all_channels if x.category_id == 852459762640486400]
+
+
+            contributors_category_channel = guild.get_channel(852459762640486400)
+            devs_channel = guild.get_channel(860920370764840990)
+            bot_role = guild.get_role(1055915585332056076)
+            contributors_channel = guild.get_channel(852459854844395540)
+
+            bot = guild.get_member(1031609181700104283)
+            contributors_chan_members = contributors_channel.members
+            bot_channels = [x.name for x in all_channels if bot in x.members]
 
             msg = ""
 
@@ -448,8 +465,16 @@ class TelegramBot:
 
                 msg += return_pretty(data, len_lines=6)
 
-            msg += "/menu  |  /done  |  /github"
+            msg += f"\nBot roles: {[x.name for x in guild.get_member(1031609181700104283).roles]}\n"
+            msg += f"\ndevs channel permissions inherited from contributors category? {devs_channel.permissions_synced}\n"
+            msg += f"\ncontributors channel permissions inherited from contributors category? {contributors_channel.permissions_synced}\n"
+            msg += f"\nThreads visible to bot under devs channel: {[x.name for x in devs_channel.threads]}\n"
+            msg += f"\nThreads visible to bot under contributors channel: {[x.name for x in contributors_channel.threads]}\n"
+            msg += f"\nBot is member of channels:\n{bot_channels}"
+            msg += "\n\n/menu  |  /done  |  /github"
+
             await update.message.reply_text(msg)
+            return ConversationHandler.END
 
 
     async def done(self, update, context) -> int:
