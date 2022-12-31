@@ -233,6 +233,8 @@ class DiscordBot:
             # If in debugging: Send msg details to admin TG
             if DEBUG_MODE:
                 msg = (
+                    f"CONTENT: {message.content}\n"
+                    f"CHANNEL: {message.channel.name}\n"
                     f"\n"
                     f"MENTIONS: {message.mentions}\n"
                     f"ROLE MENTIONS: {message.role_mentions}\n"
@@ -240,7 +242,6 @@ class DiscordBot:
                     f"EMBEDS: {message.embeds}\n"
                     f"FLAGS: {message.flags}\n"
                     f"ATTACHMENTS: {message.attachments}\n"
-                    f"CONTENT: {message.content}\n"
                 )
                 await self.send_to_TG(DEBUG_ID, f"{msg}")
 
