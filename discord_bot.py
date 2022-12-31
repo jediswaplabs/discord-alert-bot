@@ -263,11 +263,11 @@ class DiscordBot:
                     # Cycle through all user mentions in message
                     if user in message.mentions:
 
-                        log(f"USER IN MENTIONS: {message.author.nick} mentioned {username}")
+                        log(f"USER IN MENTIONS: {message.author} mentioned {username}")
                         author, guild, channel = message.author, message.guild, message.channel.name
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"\nMentioned by {author.nick} in {guild.name} in [{channel}]({url}):\n\n"
+                        header = f"\nMentioned by {author} in {guild.name} in [{channel}]({url}):\n\n"
                         out_msg = line+header+contents+"\n"+line+signature
 
                         # Cycle through all TG ids connected to this Discord handle
