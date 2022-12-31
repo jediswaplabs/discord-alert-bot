@@ -5,7 +5,7 @@ In this file the DiscordBot class is defined. DiscordBot instantiates a
 Telegram bot of its own to forward the Discord messages to Telegram.
 """
 
-import os, discord, logging
+import os, discord, logging, json
 from dotenv import load_dotenv
 from telegram import Bot
 from pandas import read_pickle
@@ -98,7 +98,6 @@ class DiscordBot:
                 self.channel_whitelist[k] = v["discord channels"]
 
         log(
-            f"\nDATA READ FROM PICKLE FILE:\n{self.users}\n\n"
             f"\nlistening_to:\t\t{self.listening_to}"
             f"\ndiscord_telegram_map:\t{self.discord_telegram_map}"
             f"\nchannel_whitelist:\t{self.channel_whitelist}\n"
@@ -161,20 +160,21 @@ class DiscordBot:
 
 
     async def get_channels(self, guild_id) -> list:
-        """Takes a guild ID, returns all text channel names of this guild."""
+        """Takes a guild ID, returns subset of text channel names of this guild."""
+
         out_channels = []
         guild = await self.get_guild(guild_id)
         channels = guild.channels
 
-        # channel_list = [] # DEBUG
+        # Only show channels from welcome, community & contribute categories
+        allowed_channel_categories = json.loads(os.getenv("ALLOWED_CHANNEL_CATEGORIES"))
 
-        # Filter out anything but text channels
+        # Filter out anything but text channels + anything specified here:
+        filter_out = ["ticket", "closed"]
         for channel in channels:
-            if "text" in channel.type and "ticket" not in channel.name:
-                # channel_list.append((channel.name, channel.type)) # DEBUG
-                out_channels.append(channel.name)
-
-        # log(f"CHANNEL_CATEGORIES: {iter_to_str(channel_list)}") # DEBUG
+            if "text" in channel.type and not any(x in channel.name for x in filter_out):
+                if channel.category_id in allowed_channel_categories:
+                    out_channels.append(channel.name)
 
         return out_channels
 
@@ -234,13 +234,13 @@ class DiscordBot:
             if DEBUG_MODE:
                 msg = (
                     f"\n"
-                    f"mentions: {message.mentions}\n"
-                    f"role mentions: {message.role_mentions}\n"
-                    f"channel mentions: {message.channel_mentions}\n"
-                    f"embeds: {message.embeds}\n"
-                    f"flags: {message.flags}\n"
-                    f"attachments: {message.attachments}\n"
-                    f"content: {message.content}\n"
+                    f"MENTIONS: {message.mentions}\n"
+                    f"ROLE MENTIONS: {message.role_mentions}\n"
+                    f"CHANNEL MENTIONS: {message.channel_mentions}\n"
+                    f"EMBEDS: {message.embeds}\n"
+                    f"FLAGS: {message.flags}\n"
+                    f"ATTACHMENTS: {message.attachments}\n"
+                    f"CONTENT: {message.content}\n"
                 )
                 await self.send_to_TG(DEBUG_ID, f"{msg}")
 
@@ -263,11 +263,11 @@ class DiscordBot:
                     # Cycle through all user mentions in message
                     if user in message.mentions:
 
-                        log(f"USER IN MENTIONS: {message.author} mentioned {username}")
+                        log(f"USER IN MENTIONS: {message.author.nick} mentioned {username}")
                         author, guild, channel = message.author, message.guild, message.channel.name
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"\nMentioned by {author.name} in {guild.name} in [{channel}]({url}):\n\n"
+                        header = f"\nMentioned by {author.nick} in {guild.name} in [{channel}]({url}):\n\n"
                         out_msg = line+header+contents+"\n"+line+signature
 
                         # Cycle through all TG ids connected to this Discord handle
@@ -318,7 +318,7 @@ class DiscordBot:
                         author, guild, url = message.author, message.guild, message.jump_url
                         channel = message.channel.name
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"Message to {role} in {guild.name} in [{channel}]({url}):\n\n"
+                        header = f"{role} mentioned in {guild.name} in [{channel}]({url}):\n\n"
                         out_msg = line+header+contents+"\n"+line+signature
 
                         # Cycle through all TG ids connected to this Discord role
