@@ -268,6 +268,7 @@ class DiscordBot:
                         author, guild, channel = message.author, message.guild, message.channel.name
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
+                        if author.nick: author = author.nick
                         header = f"\nMentioned by {author} in {guild.name} in [{channel}]({url}):\n\n"
                         out_msg = line+header+contents+"\n"+line+signature
 
