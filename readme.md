@@ -6,7 +6,7 @@
 A Telegram bot that notifies you when your handle is mentioned in a specific Discord server.
 To run, add the bot [Telegram Alerts](https://discord.com/oauth2/authorize?client_id=1031609181700104283&scope=bot&permissions=1024) to the **Discord** server you want to get notifications for. It only needs permissions to read messages. Feel free to use the [invite link](https://discord.com/oauth2/authorize?client_id=1031609181700104283&scope=bot&permissions=1024).
 
-On **Telegram**, start a conversation with [@DiscordAlertsBot](https://t.me/DiscordAlertsBot).
+On **Telegram**, start a conversation with [@JediSwapAlertBot](https://t.me/JediSwapAlertBot).
 It will prompt for your Discord handle and the Discord server you want to use it in.
 You can now customize the bot to forward any message mentioning your Discord handle or
 a role you want notifications for. These notifications can be switched on on a per-channel
@@ -50,7 +50,7 @@ Run `main.py` to start the bot.
 python main.py
 ```
 
-On Telegram, start a conversation with [@DiscordAlertsBot](https://t.me/DiscordAlertsBot) to set up notifications.
+On Telegram, start a conversation with [@JediSwapAlertBot](https://t.me/JediSwapAlertBot) to set up notifications.
 
 ## License
 
