@@ -87,7 +87,7 @@ class TelegramBot:
 
 
     async def add_placeholders(self, update, context) -> None:
-        """Helper function to create some user_data entries."""
+        """Create new user if not in database yet."""
         guild = int(os.getenv("DEFAULT_GUILD"))
         context.user_data["discord roles"] = set()
         context.user_data["discord channels"] = set()
@@ -155,7 +155,7 @@ class TelegramBot:
                 " please select 'Discord handle' from the menu below. "
                 " To restrict notifications to certain channels only,"
                 " select 'Discord channels'."
-                " To receive notifications for mentions of specific roles,"
+                " To customize role notifications,"
                 " select 'Discord roles'."
                 " \n\nPlease choose:"
             )
@@ -323,6 +323,11 @@ class TelegramBot:
         # Check if user-entered data exists on Discord
         if category == "discord handle":
             check = await self.discord_bot.get_user(guild_id, text)
+            # Automatically add user roles if Discord handle exists
+            if check != None:
+                roles = await self.discord_bot.get_user_roles(text, guild_id)
+                if roles != []:
+                    context.user_data["discord roles"] = set(roles)
 
         elif category == "discord channels":
             channels_available = await self.discord_bot.get_channels(guild_id)
