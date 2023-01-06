@@ -12,6 +12,8 @@ from helpers import log, iter_to_str, return_pretty
 from pandas import read_pickle
 from typing import Dict, Union, List
 from dotenv import load_dotenv
+from warnings import filterwarnings
+from telegram.warnings import PTBUserWarning
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -30,7 +32,10 @@ from telegram.ext import (
     PersistenceInput,
     filters,
 )
+
 load_dotenv("./.env")
+filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
+
 
 class TelegramBot:
     """A class to encapsulate all relevant methods of the Telegram bot."""
@@ -90,10 +95,18 @@ class TelegramBot:
         return
 
 
+    async def send_msg(self, msg, update, **kwargs):
+        """Wrapper function to send out messages in all conditions."""
+        if update.message:
+            await update.message.reply_text(msg, **kwargs)
+        else:
+            await update._bot.send_message(update.effective_message.chat_id, msg, **kwargs)
+
+
     async def start(self, update, context) -> int:
         """Start the conversation, show active notifications & button menu."""
 
-        chat_id = update.message.chat_id
+        chat_id = update.message.chat_id if update.message else context._chat_id
         user_data = context.user_data
         check_keys = ["discord roles", "discord channels", "discord guild"]
 
@@ -117,7 +130,7 @@ class TelegramBot:
                     "\n\n~~~~~~~~~~~~~~~~~~~~~~\nPlease choose an option:"
                 )
                 # Send out message & end it here
-                await update.message.reply_text(reply_text, reply_markup=self.markup)
+                await self.send_msg(reply_text, update, reply_markup=self.markup)
                 return self.CHOOSING
 
             # Possibility: At least one active notification trigger
@@ -155,7 +168,7 @@ class TelegramBot:
             )
 
         # Send out message
-        await update.message.reply_text(reply_text, reply_markup=self.markup)
+        await self.send_msg(reply_text, update, reply_markup=self.markup)
         return self.CHOOSING
 
 
@@ -196,7 +209,7 @@ class TelegramBot:
         button_list = [InlineKeyboardButton(x, callback_data=x) for x in buttons]
         reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
 
-        await update.message.reply_text("Please choose:", reply_markup=reply_markup)
+        await self.send_msg("Please choose:", update, reply_markup=reply_markup)
 
         return self.CHOOSING
         # Return CHOOSING or a newly created state?
@@ -218,7 +231,7 @@ class TelegramBot:
             f"You can find it by tapping your avatar or in settings -> "
             f"my account -> username."
         )
-        await update.message.reply_text(reply_text)
+        await self.send_msg(reply_text, update)
         return self.TYPING_REPLY
 
     # TODO: Delete old roles menu
@@ -230,7 +243,7 @@ class TelegramBot:
 
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
         if "discord handle" not in context.user_data:
-            await update.message.reply_text("Please enter a Discord username first!")
+            await self.send_msg("Please enter a Discord username first!", update)
             return await self.discord_handle(update, context)
 
         discord_handle = context.user_data["discord handle"]
@@ -269,7 +282,7 @@ class TelegramBot:
         if update.callback_query:
             await update.callback_query.message.edit_text(reply_text)
 
-        #await update.message.reply_text(reply_text)
+        #await self.send_msg(reply_text, update)
 
         return self.TYPING_REPLY
 
@@ -288,48 +301,41 @@ class TelegramBot:
 
         callback_data = update.callback_query.data
 
-        reply_text = "Currently, you are receiving notifications for these roles:"
-        reply_text += iter_to_str(active_roles)
+
+        if active_roles == set():
+            reply_text = (
+                "There are no role notifications set up yet.\n"
+            )
+        else:
+            reply_text = "Currently, you are receiving notifications for these roles:"
+            reply_text += iter_to_str(active_roles)
 
         # Adding a role
         if callback_data == "Add roles":
 
-            other_roles = set(roles_available)-active_roles
-            reply_text = f"On {guild_name}, these are all other roles available to you:"
+            other_roles = set(roles_available) - active_roles
+            reply_text = f"On {guild_name}, these roles are available to you:"
             reply_text += iter_to_str(other_roles)
             reply_text += (
                 f"Please enter the name of a role you would like"
                 " to receive notifications for, or hit /menu to go back."
             )
 
-
         # Removing a role
         elif callback_data == "Remove roles":
 
+            reply_text += (
+                f"Please enter the name of a role you would like"
+                " to deactivate notifications for, or hit /menu to go back."
+            )
 
-
-            if current_roles == set():
-                reply_text = (
-                    "There are no roles set up yet!"
-                    " Hit /menu to go back."
-                )
-
-            else:
-                reply_text += (
-                    f"Please enter the name of a role you would like"
-                    " to deactivate notifications for, or hit /menu to go back."
-                )
-
-        # Send back to menu at any other callback
+        # Send back to main menu if callback not recognized
         else:
             log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
             return await self.start(update, context)
 
         # Prompt for user input
-        if update.callback_query:
-            await update.callback_query.message.edit_text(reply_text)
-
-        #await update.message.reply_text(reply_text)
+        await update.callback_query.message.edit_text(reply_text)
 
         return self.TYPING_REPLY
 
@@ -346,7 +352,7 @@ class TelegramBot:
 
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
         if "discord handle" not in context.user_data:
-            await update.message.reply_text("Please enter a Discord username first!")
+            await self.send_msg("Please enter a Discord username first!", update)
             return await self.discord_handle(update, context)
 
         # Parse message prompting for user input & send out
@@ -369,8 +375,7 @@ class TelegramBot:
             f"Hit /menu to leave it at that or alternatively enter a channel from the above"
             " list you would like to restrict the notifications to:"
         )
-
-        await update.message.reply_text(reply_text)
+        await self.send_msg(reply_text, update)
         return self.TYPING_REPLY
 
 
@@ -396,11 +401,12 @@ class TelegramBot:
             "206346498-Where-can-I-find-my-User-Server-Message-ID-) for help on finding it."
             " Hit /menu to go back and leave the current guild unchanged."
         )
-
-        await update.message.reply_text(
+        await self.send_msg(
             reply_text,
+            update,
             disable_web_page_preview=True,
             parse_mode="Markdown")
+        )
 
         return self.TYPING_REPLY
 
@@ -415,7 +421,7 @@ class TelegramBot:
                 " Back to /menu"
             )
         else:
-            await update.message.reply_text("Please wait...")
+            await self.send_msg("Please wait...", update)
             for k in context.user_data.copy().keys():
                 del context.user_data[k]
 
@@ -429,14 +435,14 @@ class TelegramBot:
             await asyncio.sleep(2.5)
 
         # Notify user
-        await update.message.reply_text(reply_text)
+        await self.send_msg(reply_text, update)
         return ConversationHandler.END
 
 
     async def received_information(self, update, context) -> int:
         """
-        Checks if info provided by user points to existing data on Discord.
-        Stores information if valid, requests re-entry if not.
+        Stores or removes data entered by user, depending on data, category,
+        and callback data, if available.
         """
 
         text = update.message.text
@@ -445,7 +451,7 @@ class TelegramBot:
         guild_name = await self.discord_bot.get_guild(guild_id)
         callback_data = None
         if update.callback_query: callback_data = update.callback_query.data
-        log(f"CALLBACK DATA AT received_onformation(): {callback_data}") # TODO: Remove
+        log(f"CALLBACK DATA AT received_information(): {callback_data}") # TODO: Remove
 
         # Possibility: User wants to store data, not remove it
         removal_triggers = ("Remove roles", "Remove channels")
@@ -506,11 +512,12 @@ class TelegramBot:
                     cat = category.replace("discord", "Discord").rstrip("s")
                     reply_text += f" Please enter a valid {cat} or go back to /menu."
 
-                await update.message.reply_text(
+                await self.send_msg(
                     reply_text,
+                    update,
                     disable_web_page_preview=True,
                     parse_mode="Markdown"
-                    )
+                )
 
                 return self.TYPING_REPLY
 
@@ -556,7 +563,7 @@ class TelegramBot:
             )
 
             del context.user_data["choice"]
-            await update.message.reply_text(success_msg, reply_markup=self.markup)
+            await self.send_msg(success_msg, update, reply_markup=self.markup)
             return await self.start(update, context)
 
 
@@ -581,28 +588,27 @@ class TelegramBot:
             # Check if actually there.
             # Remove
             # Success message next
-
-        elif callback_data == "Add roles":
-            item = "item"
-            if category == "discord roles": item = "role"
-            if category == "discord channels": item = "channel"
-
-            # Ask if another should be added/removed. I
-            msg = f"Do you want to add another {item}?"
-            buttons = [("Yes", "Add roles"), ("No", "Back")]
-            # TODO: Make old keyboard disappear!
-            button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
-            reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
-
-        elif callback_data == "Remove roles":
-
-        else:
             pass
 
+        elif callback_data == "Add roles":
+
+            # Ask if another should be added/removed. I
+            msg = f"Do you want to add another role?"
+            buttons = [("Yes", "Add roles"), ("No", "success_msg")]
+            # TODO: Make old keyboard disappear?
 
 
 
+        elif callback_data == "Remove roles":
+            log("AAAAAAAAAHAAAAA!")
 
+        else:
+            log(f"UNHANDLED CALLBACK IN received_information: {callback_data}")
+
+        button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
+        reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+        await self.send_msg("Please choose:", update, reply_markup=reply_markup)
+        return
 
 
     async def received_callback(self, update, context) -> int:
@@ -619,12 +625,13 @@ class TelegramBot:
         log(f"CALLBACK DATA {callback_data}")
         log(f"category: {category}")
         log(f"UPDATE: {update}")
+        log(f"UPDATE KEYS: {dir(update)}")
         log(f"UPDATE.MESSAGE: {update.message}")
         log(f"UPDATE.CALLBACK_QUERY.MESSAGE: {update.callback_query.message}")
         log(f"CONTEXT DATA: {dir(context)}")
 
         # Possibility: User pressed "No" button in received_information()
-        if callback_data == "success_msg"
+        if callback_data == "success_msg":
             success_msg = (
                 "Success! Your data so far:"
                 f"\n{self.parse_str(context.user_data)}\n"
@@ -658,15 +665,12 @@ class TelegramBot:
             return await self.start(update, context)
 
 
-
-
-
-
     async def show_source(self, update, context) -> None:
         """Display link to github."""
-        await update.message.reply_text(
+        await self.send_msg(
             "Collaboration welcome! -> [github](https://github.com/jediswaplabs/discord-alert-bot)"
             "\nBack to /menu or /done.",
+            update,
             parse_mode="Markdown"
         )
         return ConversationHandler.END
@@ -674,7 +678,7 @@ class TelegramBot:
 
     async def debug(self, update, context) -> None:
         """Display some quick data for debugging."""
-        chat_id = update.message.chat_id
+        chat_id = update.message.chat_id if update.message else context._chat_id
         debug_id = int(os.environ["DEBUG_ID"])
         users = read_pickle('./data')["user_data"]
 
@@ -715,8 +719,7 @@ class TelegramBot:
             msg += f"\nThreads visible to bot under contributors channel: {[x.name for x in contributors_channel.threads]}\n"
             msg += f"\nBot is member of channels:\n{bot_channels}"
             msg += "\n\n/menu  |  /done  |  /github"
-
-            await update.message.reply_text(msg)
+            await self.send_msg(msg, update)
             return ConversationHandler.END
 
 
@@ -727,8 +730,9 @@ class TelegramBot:
         if "choice" in user_data:
             del user_data["choice"]
 
-        await update.message.reply_text(
+        await self.send_msg(
             "Bring back the /menu anytime!",
+            update,
             reply_markup=ReplyKeyboardRemove(),
         )
 
