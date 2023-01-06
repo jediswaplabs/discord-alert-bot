@@ -31,6 +31,10 @@ def return_pretty(d, len_lines=None, prefix="\n", suffix="\n") -> str:
 
 def iter_to_str(iterable, ignore_list=[], prefix="\n\n", suffix="\n\n") -> str:
     """Parses iterable to string, one entry per line."""
+    if iterable == None:
+        return ""
+        
     iterable = [str(x) for x in iterable if x not in ignore_list]
     contents = "\n".join(iterable)
+
     return str(prefix+contents+suffix)
