@@ -10,20 +10,32 @@ command line to stop the bot.
 import logging, os, random, asyncio
 from helpers import log, iter_to_str, return_pretty
 from pandas import read_pickle
-from typing import Dict
+from typing import Dict, Union, List
 from dotenv import load_dotenv
-from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
+from warnings import filterwarnings
+from telegram.warnings import PTBUserWarning
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    Update
+)
 from telegram.ext import (
     Application,
     CommandHandler,
     ContextTypes,
     ConversationHandler,
     MessageHandler,
+    CallbackQueryHandler,
     PicklePersistence,
     PersistenceInput,
     filters,
 )
+
 load_dotenv("./.env")
+filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
+
 
 class TelegramBot:
     """A class to encapsulate all relevant methods of the Telegram bot."""
@@ -72,34 +84,30 @@ class TelegramBot:
         return "\n".join(out_list).join(["\n", "\n"])
 
 
-    def under_construction_msg(self, custom_msg=None) -> str:
-        """A placeholder message for yet to be implemented features."""
-
-        if custom_msg:
-            reply = "🚧 "*8+"\n\n" + custom_msg + "\n\n"+"🚧 "*8
-            reply += "\n\nBack to /menu or /done."
-        else:
-            reply = (
-                "🚧 "*8+"\n\n\t...under construction...\n\n"+"🚧 "*8+ \
-                "\n\nBack to /menu or /done."
-            )
-        return str(reply)
-
-
     async def add_placeholders(self, update, context) -> None:
         """Create new user if not in database yet."""
-        guild = int(os.getenv("DEFAULT_GUILD"))
+
         context.user_data["discord roles"] = set()
         context.user_data["discord channels"] = set()
-        context.user_data["discord guild"] = guild
+        context.user_data["discord guild"] = int(os.getenv("DEFAULT_GUILD"))
+        context.user_data["last callback"] = None
+
         await self.refresh_discord_bot()
         return
+
+
+    async def send_msg(self, msg, update, **kwargs):
+        """Wrapper function to send out messages in all conditions."""
+        if update.message:
+            await update.message.reply_text(msg, **kwargs)
+        else:
+            await update._bot.send_message(update.effective_message.chat_id, msg, **kwargs)
 
 
     async def start(self, update, context) -> int:
         """Start the conversation, show active notifications & button menu."""
 
-        chat_id = update.message.chat_id
+        chat_id = update.message.chat_id if update.message else context._chat_id
         user_data = context.user_data
         check_keys = ["discord roles", "discord channels", "discord guild"]
 
@@ -123,7 +131,7 @@ class TelegramBot:
                     "\n\n~~~~~~~~~~~~~~~~~~~~~~\nPlease choose an option:"
                 )
                 # Send out message & end it here
-                await update.message.reply_text(reply_text, reply_markup=self.markup)
+                await self.send_msg(reply_text, update, reply_markup=self.markup)
                 return self.CHOOSING
 
             # Possibility: At least one active notification trigger
@@ -161,12 +169,55 @@ class TelegramBot:
             )
 
         # Send out message
-        await update.message.reply_text(reply_text, reply_markup=self.markup)
+        await self.send_msg(reply_text, update, reply_markup=self.markup)
+        return self.CHOOSING
+
+
+    def build_button_menu(
+        self,
+        buttons: List[InlineKeyboardButton],
+        n_cols: int,
+        header_buttons: Union[InlineKeyboardButton, List[InlineKeyboardButton]]=None,
+        footer_buttons: Union[InlineKeyboardButton, List[InlineKeyboardButton]]=None
+    ) -> List[List[InlineKeyboardButton]]:
+        """Helper function. Returns an inline button menu from a list of buttons."""
+
+        menu = [buttons[i:i + n_cols] for i in range(0, len(buttons), n_cols)]
+
+        if header_buttons:
+            menu.insert(0, header_buttons if isinstance(header_buttons, list) else [header_buttons])
+        if footer_buttons:
+            menu.append(footer_buttons if isinstance(footer_buttons, list) else [footer_buttons])
+
+        return menu
+
+
+    async def inline_submenu(self, update, context) -> int:
+        """A dynamic second button menu based on user's choice in main menu."""
+
+        # Save category chosen by user for further conversation flow
+        context.user_data["choice"] = update.message.text
+        category = context.user_data["choice"].lower()
+        button_list = []
+
+        log(f"GOT CATEGORY IN inline_submenu(): {category}")
+
+        if category == "discord roles":
+            buttons = ["Add roles", "Remove roles", "Back"]
+
+        elif category == "discord channels":
+            buttons = ["Add channels", "Remove channels", "Back"]
+
+        button_list = [InlineKeyboardButton(x, callback_data=x) for x in buttons]
+        reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+
+        await self.send_msg("Please choose:", update, reply_markup=reply_markup)
+
         return self.CHOOSING
 
 
     async def discord_handle(self, update, context) -> int:
-        """Discord username menu"""
+        """Discord username menu."""
 
         context.user_data["choice"] = "discord handle"
 
@@ -181,32 +232,85 @@ class TelegramBot:
             f"You can find it by tapping your avatar or in settings -> "
             f"my account -> username."
         )
-        await update.message.reply_text(reply_text)
+        await self.send_msg(reply_text, update)
         return self.TYPING_REPLY
 
 
-    async def discord_roles(self, update, context) -> int:
-        """Discord roles menu"""
+    async def roles_menu(self, update, context) -> int:
+        """Discord roles main menu."""
+
+        if not update.callback_query: log(f"ARRIVED AT roles_menu() WITH EMPTY CALLBACK")
 
         context.user_data["choice"] = "discord roles"
         guild_id = context.user_data["discord guild"]
-
-        # Possibility: No Discord username is set yet. Forward to username prompt instead.
-        if "discord handle" not in context.user_data:
-            await update.message.reply_text("Please enter a Discord username first!")
-            return await self.discord_handle(update, context)
-
         discord_handle = context.user_data["discord handle"]
         guild_name = await self.discord_bot.get_guild(guild_id)
+        active_roles = context.user_data["discord roles"]
         roles_available = await self.discord_bot.get_user_roles(discord_handle, guild_id)
 
-        reply_text = f"On {guild_name}, these are the roles which are available to you:"
-        reply_text += iter_to_str(roles_available)
-        reply_text += (
-            f"Please enter the name of a role you would like"
-            " to receive notifications for, or hit /menu to go back."
-        )
-        await update.message.reply_text(reply_text)
+        callback_data = update.callback_query.data
+
+
+        if active_roles == set():
+            reply_text = "There are no role notifications set up yet. "
+
+        else:
+            reply_text = "Currently, you are receiving notifications for these roles:"
+            reply_text += iter_to_str(active_roles)
+
+        # Adding a role
+        if callback_data == "Add roles":
+
+            other_roles = set(roles_available) - active_roles
+
+            if other_roles == set():
+
+                reply_text = "All your roles have notifications enabled currently! "
+                reply_text += "Please choose:"
+
+                buttons = [("Remove roles", "Remove roles"), ("Back", "Back")]
+                button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
+                reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+
+                await self.send_msg(reply_text, update, reply_markup=reply_markup)
+                return
+
+
+            else:
+                reply_text = f"On {guild_name}, these roles are available to you:"
+                reply_text += iter_to_str(other_roles)
+                reply_text += (
+                    f"Please enter the name of a role you would like"
+                    " to receive notifications for, or hit /menu to go back."
+                )
+
+        # Removing a role
+        elif callback_data == "Remove roles":
+
+            if active_roles == set():
+
+                reply_text += "Please choose:"
+                buttons = [("Add a role", "Add roles"), ("Back", "Back")]
+                button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
+                reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+
+                await self.send_msg(reply_text, update, reply_markup=reply_markup)
+                return
+
+            else:
+                reply_text += (
+                    f"Please enter the name of a role you would like"
+                    " to deactivate notifications for, or hit /menu to go back."
+                )
+
+        # Send back to main menu if callback not recognized
+        else:
+            log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
+            return await self.start(update, context)
+
+        # Prompt for user input
+        await update.callback_query.message.edit_text(reply_text)
+
         return self.TYPING_REPLY
 
 
@@ -222,7 +326,7 @@ class TelegramBot:
 
         # Possibility: No Discord username is set yet. Forward to username prompt instead.
         if "discord handle" not in context.user_data:
-            await update.message.reply_text("Please enter a Discord username first!")
+            await self.send_msg("Please enter a Discord username first!", update)
             return await self.discord_handle(update, context)
 
         # Parse message prompting for user input & send out
@@ -245,8 +349,7 @@ class TelegramBot:
             f"Hit /menu to leave it at that or alternatively enter a channel from the above"
             " list you would like to restrict the notifications to:"
         )
-
-        await update.message.reply_text(reply_text)
+        await self.send_msg(reply_text, update)
         return self.TYPING_REPLY
 
 
@@ -272,11 +375,12 @@ class TelegramBot:
             "206346498-Where-can-I-find-my-User-Server-Message-ID-) for help on finding it."
             " Hit /menu to go back and leave the current guild unchanged."
         )
-
-        await update.message.reply_text(
+        await self.send_msg(
             reply_text,
+            update,
             disable_web_page_preview=True,
-            parse_mode="Markdown")
+            parse_mode="Markdown"
+        )
 
         return self.TYPING_REPLY
 
@@ -291,7 +395,7 @@ class TelegramBot:
                 " Back to /menu"
             )
         else:
-            await update.message.reply_text("Please wait...")
+            await self.send_msg("Please wait...", update)
             for k in context.user_data.copy().keys():
                 del context.user_data[k]
 
@@ -305,138 +409,288 @@ class TelegramBot:
             await asyncio.sleep(2.5)
 
         # Notify user
-        await update.message.reply_text(reply_text)
+        await self.send_msg(reply_text, update)
         return ConversationHandler.END
 
 
     async def received_information(self, update, context) -> int:
         """
-        Checks if info provided by user points to existing data on Discord.
-        Stores information if valid, requests re-entry if not.
+        Stores or removes data entered by user, depending on data, category,
+        and callback data, if available.
         """
 
         text = update.message.text
-        category = context.user_data["choice"]
+        category = context.user_data["choice"].lower()
         guild_id = context.user_data["discord guild"]
         guild_name = await self.discord_bot.get_guild(guild_id)
+        if "last callback" not in context.user_data: context.user_data["last callback"] = None
+        callback_data = context.user_data["last callback"]
 
-        # Check if user-entered data exists on Discord
-        if category == "discord handle":
-            check = await self.discord_bot.get_user(guild_id, text)
-            # Automatically add user roles if Discord handle exists
-            if check != None:
-                roles = await self.discord_bot.get_user_roles(text, guild_id)
-                if roles != []:
-                    context.user_data["discord roles"] = set(roles)
+        log(f"received_information() callback_data: {callback_data}") # TODO: Remove
+        log(f"received_information() category: {category}")
+        log(f"received_information() update.callback_query: {update.callback_query}")
+        log(f"received_information() UPDATE: {update}")
 
-        elif category == "discord channels":
-            channels_available = await self.discord_bot.get_channels(guild_id)
-            check = True if text in channels_available else None
 
-        elif category == "discord guild":
-            if text.isdigit():    # Convert guild ID to int
-                text = int(text)
-                check = await self.discord_bot.get_guild(text)
-            else:
-                check = None    # Guild ID has to consist of numbers only
 
-        elif category == "discord roles":
-            roles = await self.discord_bot.get_guild_roles(guild_id)
-            check = True if text in roles else None
+        # Possibility: User wants to store data, not remove it
+        removal_triggers = ("Remove roles", "Remove channels")
+        if callback_data not in removal_triggers:
 
-        else:
-            check = True
+            # ====================   CASE: STORE DATA   ====================
 
-        # If invalid data -> Repeat prompt with notice.
-        if check == None:
-
+            # Check if user-entered data exists on Discord
             if category == "discord guild":
-                reply_text = (
-                    f"No guild found on Discord with ID {text}."
-                    " Please make sure the entered ID is correct and the bot"
-                    " has been [added to the Discord guild](https://www.howtogeek.com/"
-                    "744801/how-to-add-a-bot-to-discord/) using [this](https://discord."
-                    "com/oauth2/authorize?client_id=1031609181700104283&scope=bot&permissions"
-                    "=1024) invite link."
-                )
+                if text.isdigit():    # Convert guild ID to int
+                    text = int(text)
+                    check = await self.discord_bot.get_guild(text)
+                else:
+                    check = None    # Guild ID has to consist of numbers only
+
+            elif category == "discord handle":
+                check = await self.discord_bot.get_user(guild_id, text)
+                # Automatically add user roles if Discord handle exists
+                if check != None:
+                    roles = await self.discord_bot.get_user_roles(text, guild_id)
+                    if roles != []:
+                        context.user_data["discord roles"] = set(roles)
+
+            elif category == "discord channels":
+                channels_available = await self.discord_bot.get_channels(guild_id)
+                check = True if text in channels_available else None
+
+
+            elif category == "discord roles":
+                roles = await self.discord_bot.get_guild_roles(guild_id)
+                check = True if text in roles else None
 
             else:
-                guild_name = await self.discord_bot.get_guild(guild_id)
-                reply_text = f"{text} doesn't seem to exist on {guild_name}."
+                check = True
 
-            if category == "discord channels":
-                reply_text += f" Please choose a text channel from this list or go back to /menu."
-                reply_text += iter_to_str(channels_available)
+            # If invalid data -> Repeat prompt with notice.
+            if check == None:
 
-            else:
-                cat = category.replace("discord", "Discord").rstrip("s")
-                reply_text += f" Please enter a valid {cat} or go back to /menu."
+                if category == "discord guild":
+                    reply_text = (
+                        f"No guild found on Discord with ID {text}."
+                        " Please make sure the entered ID is correct and the bot"
+                        " has been [added to the Discord guild](https://www.howtogeek.com/"
+                        "744801/how-to-add-a-bot-to-discord/) using [this](https://discord."
+                        "com/oauth2/authorize?client_id=1031609181700104283&scope=bot&permissions"
+                        "=1024) invite link."
+                    )
 
-            await update.message.reply_text(
-                reply_text,
-                disable_web_page_preview=True,
-                parse_mode="Markdown"
+                else:
+                    guild_name = await self.discord_bot.get_guild(guild_id)
+                    reply_text = f"{text} doesn't seem to exist on {guild_name}."
+
+                if category == "discord channels":
+                    reply_text += f" Please choose a text channel from this list or go back to /menu."
+                    reply_text += iter_to_str(channels_available)
+
+                else:
+                    cat = category.replace("discord", "Discord").rstrip("s")
+                    reply_text += f" Please enter a valid {cat} or go back to /menu."
+
+                await self.send_msg(
+                    reply_text,
+                    update,
+                    disable_web_page_preview=True,
+                    parse_mode="Markdown"
                 )
 
-            return self.TYPING_REPLY
+                return self.TYPING_REPLY
 
-        # If valid data -> Update database with entered information
+            # If valid data -> Update database with entered information
 
-        # Possibility: No entry yet under this key -> Create entry if in allow_list
-        allow_list = ["discord handle", "discord guild"]
-        if (category not in context.user_data) and (category in allow_list):
-            log(f"received_information():\tPOSSIBILITY 1: NO KEY FOUND -> CREATE ENTRY")
-            context.user_data[category] = text
+            # Possibility: No entry yet under this key -> Create entry if in allow_list
+            allow_list = ["discord handle", "discord guild"]
+            if (category not in context.user_data) and (category in allow_list):
+                log(f"received_information():\tPOSSIBILITY 1: NO KEY FOUND -> CREATE ENTRY")
+                context.user_data[category] = text
 
-        # Possibility: Key known & points to set -> Add to set (i.e. for roles, channels)
-        elif isinstance(context.user_data[category], set):
-            log(f"received_information():\tPOSSIBILITY 2: ADD TO SET")
-            context.user_data[category].add(text)
+            # Possibility: Key known & points to set -> Add to set (i.e. for roles, channels)
+            elif isinstance(context.user_data[category], set):
+                log(f"received_information():\tPOSSIBILITY 2: ADD TO SET")
+                context.user_data[category].add(text)
 
-        # Possibility: Key known & points to anything other than a set -> Overwrite
+            # Possibility: Key known & points to anything other than a set -> Overwrite
+            else:
+                log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
+                context.user_data[category] = text
+
+            # TODO: If coming from roles or channels: Ask if another should be added
+
+
+            # If new guild has been set -> wipe roles & channels from old guild
+            if category == "discord guild" and check:
+                context.user_data["discord roles"] = set()
+                context.user_data["discord channels"] = set()
+
+            log(
+                f"RECEIVED INFORMATION:\n\category type: "
+                f"{type(context.user_data[category])}\ntext: {text}\ncategory: {category}"
+            )
+
+            # Relay changes to Discord bot
+            await self.refresh_discord_bot()
+
+            ignore_list = ["last callback", "choice"]
+            show_data = {k: v for k, v in context.user_data.items() if k not in ignore_list}
+
+            success_msg = (
+                "Success! Your data so far:"
+                f"\n{self.parse_str(show_data)}\n"
+                " If the changes don't show up under 'current active notifications'"
+                " yet, please allow the bot about 10s, then hit /menu again."
+            )
+
+            del context.user_data["choice"]
+            await self.send_msg(success_msg, update, reply_markup=self.markup)
+            return await self.start(update, context)
+
+
+        # ====================   CASE: REMOVE DATA   ====================
+
+        # Possibility: User wants to remove entered data, instead of adding it.
+        elif callback_data == "Remove roles":
+
+            current_roles = context.user_data["discord roles"]
+
+            if text in current_roles:
+                current_roles.remove(text)
+                context.user_data["discord roles"] = current_roles
+                #await self.refresh_discord_bot()
+                reply_text = f"\n'{text}' removed.\n"
+
+                log(f"Roles right now: {context.user_data['discord roles']}") # TODO: Remove
+
+                reply_text += "Do you want to remove another role?"
+                buttons = [("Yes", "Remove roles"), ("No", "success_msg")]
+                button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
+                reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+
+                await self.send_msg(reply_text, update, reply_markup=reply_markup)
+                return self.CHOOSING
+
+            else:
+                reply_text = f"{text} is not in the list."
+                reply_text += f" Please choose a role to remove from this list or go back to /menu."
+                reply_text += iter_to_str(current_roles)
+
+                await self.send_msg(reply_text, update)
+
+
+        elif callback_data == "Remove channels":
+            # Check if actually there.
+            # Remove
+            # Success message next
+            pass
+
+        elif callback_data == "Add roles":
+
+            # Ask if another should be added/removed. I
+            msg = f"Do you want to add another role?"
+            buttons = [("Yes", "Add roles"), ("No", "success_msg")]
+            # TODO: Make old keyboard disappear?
+
         else:
-            log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
-            context.user_data[category] = text
+            log(f"UNHANDLED CALLBACK IN received_information: {callback_data}")
 
-        # TODO: If coming from roles or channels: Ask if another should be added
+        #button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
+        #reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+        #await self.send_msg("Please choose:", update, reply_markup=reply_markup)
+        return
 
-        del context.user_data["choice"]
-        # If new guild has been set -> wipe roles & channels from old guild
-        if category == "discord guild" and check:
-            context.user_data["discord roles"] = set()
-            context.user_data["discord channels"] = set()
 
-        log(
-            f"RECEIVED INFORMATION:\n\category type: "
-            f"{type(context.user_data[category])}\ntext: {text}\ncategory: {category}"
-        )
+    async def received_callback(self, update, context) -> int:
+        """Callback logic is stored here. Any inline button will redirect here."""
 
-        # Relay changes to Discord bot
-        await self.refresh_discord_bot()
+        category = context.user_data["choice"].lower()
+        guild_id = context.user_data["discord guild"]
+        guild_name = await self.discord_bot.get_guild(guild_id)
+        query = update.callback_query
+        callback_data = query.data
+        context.user_data["last callback"] = callback_data
+        await query.answer()
+        # Hide last inline keyboard
+        await query.message.edit_reply_markup()
 
-        success_msg = (
-            "Success! Your data so far:"
-            f"\n{self.parse_str(context.user_data)}\n"
-            " If the changes don't show up under 'current active notifications'"
-            " yet, please allow the bot about 10s, then hit /menu again."
-        )
+        log(f"GOT CALLBACK QUERY {query}")
+        log(f"CALLBACK DATA {callback_data}")
+        log(f"category: {category}")
+        log(f"UPDATE: {update}")
+        log(f"UPDATE KEYS: {dir(update)}")
+        log(f"UPDATE.MESSAGE: {update.message}")
+        log(f"UPDATE.CALLBACK_QUERY.MESSAGE: {update.callback_query.message}")
+        log(f"CONTEXT DATA: {dir(context)}")
 
-        await update.message.reply_text(success_msg, reply_markup=self.markup)
-        return await self.start(update, context)
+        # Possibility: User pressed "Back" -> Back to main menu
+        if callback_data == "Back":
+            log(f"received_callback(): callback_data = {callback_data}")
+            await update.callback_query.edit_message_text("Going back to menu...")
+            return await self.start(update, context)
+
+
+        # Possibility: User pressed "No" button in received_information()
+        elif callback_data == "success_msg":
+            log("category == 'success_msg'")
+
+            ignore_list = ["last callback", "choice"]
+            show_data = {k: v for k, v in context.user_data.items() if k not in ignore_list}
+
+            success_msg = (
+                "Success! Your data so far:"
+                f"\n{self.parse_str(show_data)}\n"
+                " If the changes don't show up under 'current active notifications'"
+                " yet, please allow the bot about 10s, then hit /menu again."
+            )
+
+            del context.user_data["choice"]
+
+            await update.callback_query.message.edit_text(success_msg)
+            return await self.start(update, context)
+
+        # Possibility: User chose "Discord roles" at main menu
+        elif category == "discord roles":
+            log("category == 'discord roles'")
+            # Possibility: No Discord username is set yet. Forward to username prompt instead.
+            if "discord handle" not in context.user_data:
+                await update.callback_query.message.edit_text("Please enter a Discord username first!")
+                return await self.discord_handle(update, context)
+                # TODO: Check with deleted user if this works!
+
+            return await self.roles_menu(update, context)
+
+        # Possibility: User chose "Discord channels" at main menu
+        elif category == "discord channels":
+            log("category == 'discord channels'")
+            # TODO
+            pass
+
+        # Any undefined button will fall back to the main menu
+        else:
+            log(f"received_callback(): UNHANDLED CALLBACK DATA: {callback_data}")
+            pass
+
+
+
 
 
     async def show_source(self, update, context) -> None:
         """Display link to github."""
-        await update.message.reply_text(
+        await self.send_msg(
             "Collaboration welcome! -> [github](https://github.com/jediswaplabs/discord-alert-bot)"
             "\nBack to /menu or /done.",
+            update,
             parse_mode="Markdown"
         )
         return ConversationHandler.END
 
+
     async def debug(self, update, context) -> None:
         """Display some quick data for debugging."""
-        chat_id = update.message.chat_id
+        chat_id = update.message.chat_id if update.message else context._chat_id
         debug_id = int(os.environ["DEBUG_ID"])
         users = read_pickle('./data')["user_data"]
 
@@ -477,8 +731,7 @@ class TelegramBot:
             msg += f"\nThreads visible to bot under contributors channel: {[x.name for x in contributors_channel.threads]}\n"
             msg += f"\nBot is member of channels:\n{bot_channels}"
             msg += "\n\n/menu  |  /done  |  /github"
-
-            await update.message.reply_text(msg)
+            await self.send_msg(msg, update)
             return ConversationHandler.END
 
 
@@ -489,8 +742,9 @@ class TelegramBot:
         if "choice" in user_data:
             del user_data["choice"]
 
-        await update.message.reply_text(
+        await self.send_msg(
             "Bring back the /menu anytime!",
+            update,
             reply_markup=ReplyKeyboardRemove(),
         )
 
@@ -541,18 +795,17 @@ class TelegramBot:
                     MessageHandler(filters.Regex("^Discord handle$"),
                         self.discord_handle
                     ),
-                    MessageHandler(filters.Regex("^Discord channels$"),
-                        self.discord_channels
-                    ),
-                    MessageHandler(filters.Regex("^Discord roles$"),
-                        self.discord_roles
-                    ),
                     MessageHandler(filters.Regex("^Discord guild$"),
                         self.discord_guild
                     ),
                     MessageHandler(filters.Regex("^Delete my data$"),
                         self.delete_my_data
-                    )
+                    ),
+                    MessageHandler(filters.Regex("^(Discord channels|Discord roles)$"),
+                        self.inline_submenu
+                    ),
+                    CallbackQueryHandler(self.received_callback),
+
                 ],
                 self.TYPING_REPLY: [
                     MessageHandler(
@@ -566,7 +819,8 @@ class TelegramBot:
                     MessageHandler(
                         filters.COMMAND,
                         self.start
-                    )
+                    ),
+                    CallbackQueryHandler(self.received_callback),
                 ],
             },
             fallbacks=[
@@ -584,7 +838,7 @@ class TelegramBot:
                 )
             ],
             name="my_conversation",
-            persistent=False
+            persistent=False,
         )
 
         # Add additional handlers
