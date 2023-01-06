@@ -36,6 +36,9 @@ from telegram.ext import (
 load_dotenv("./.env")
 filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
 
+# Set to True to print callback data (inline button presses) to log. No user data is logged.
+DEBUG_MODE = False
+
 
 class TelegramBot:
     """A class to encapsulate all relevant methods of the Telegram bot."""
@@ -96,7 +99,7 @@ class TelegramBot:
         return
 
 
-    async def send_msg(self, msg, update, **kwargs):
+    async def send_msg(self, msg, update, **kwargs) -> None:
         """Wrapper function to send out messages in all conditions."""
         if update.message:
             await update.message.reply_text(msg, **kwargs)
@@ -194,13 +197,14 @@ class TelegramBot:
 
     async def inline_submenu(self, update, context) -> int:
         """A dynamic second button menu based on user's choice in main menu."""
-
+        global DEBUG_MODE
         # Save category chosen by user for further conversation flow
         context.user_data["choice"] = update.message.text
         category = context.user_data["choice"].lower()
         button_list = []
 
-        log(f"GOT CATEGORY IN inline_submenu(): {category}")
+        if DEBUG_MODE:
+            log(f"GOT CATEGORY IN inline_submenu(): {category}")
 
         if category == "discord roles":
             buttons = ["Add roles", "Remove roles", "Back"]
@@ -239,7 +243,9 @@ class TelegramBot:
     async def roles_menu(self, update, context) -> int:
         """Discord roles main menu."""
 
-        if not update.callback_query: log(f"ARRIVED AT roles_menu() WITH EMPTY CALLBACK")
+        global DEBUG_MODE
+        if DEBUG_MODE and not update.callback_query:
+            log(f"ARRIVED AT roles_menu() WITH EMPTY CALLBACK")
 
         context.user_data["choice"] = "discord roles"
         guild_id = context.user_data["discord guild"]
@@ -313,41 +319,13 @@ class TelegramBot:
 
         return self.TYPING_REPLY
 
-    # TODO: Remove old channels menu
-    async def discord_channels(self, update, context) -> int:
-        """Ask the user for info about the selected predefined choice."""
-
-        context.user_data["choice"] = "discord channels"
-        guild_id = context.user_data["discord guild"]
-
-
-        # Parse message prompting for user input & send out
-        guild_name = await self.discord_bot.get_guild(guild_id)
-        channels_available = await self.discord_bot.get_channels(guild_id)
-
-        reply_text = f"Available channels on {guild_name}:"
-        reply_text += iter_to_str(channels_available)
-
-        if context.user_data["discord channels"] == set():
-            reply_text += "Currently you're getting notifications for"
-            reply_text += f" all channels on {guild_name}.\n\n"
-
-        else:
-            reply_text += "Currently your notifications are restricted to"
-            reply_text += f" messages sent on these channels:."
-            reply_text += iter_to_str(context.user_data["discord channels"])
-
-        reply_text += (
-            f"Hit /menu to leave it at that or alternatively enter a channel from the above"
-            " list you would like to restrict the notifications to:"
-        )
-        await self.send_msg(reply_text, update)
-        return self.TYPING_REPLY
 
     async def channels_menu(self, update, context) -> int:
         """Discord channels main menu."""
 
-        if not update.callback_query: log(f"ARRIVED AT channels_menu() WITH EMPTY CALLBACK")
+        global DEBUG_MODE
+        if DEBUG_MODE and not update.callback_query:
+            log(f"ARRIVED AT channels_menu() WITH EMPTY CALLBACK")
 
         context.user_data["choice"] = "discord channels"
         guild_id = context.user_data["discord guild"]
@@ -356,10 +334,15 @@ class TelegramBot:
         active_channels = context.user_data["discord channels"]
         channels_available = await self.discord_bot.get_channels(guild_id)
 
+        # Optional logging if currently in debugging
+        if DEBUG_MODE:
+            log(f"channels_menu(): CHANNELS_AVAILABLE: {channels_available}")
+            log(f"channels_menu(): ACTIVE_CHANNELS: {active_channels}")
+
         callback_data = update.callback_query.data
 
         if active_channels == set():
-            reply_text = "Currently you are receiving notifications for all channels. "
+            reply_text = "Currently your notifications are not restricted to any specific channels. "
 
         else:
             reply_text = "Currently your notifications are restricted to this subset of channels:"
@@ -414,14 +397,13 @@ class TelegramBot:
 
         # Send back to main menu if callback not recognized
         else:
-            log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
+            if DEBUG_MODE: log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
             return await self.start(update, context)
 
         # Prompt for user input
         await update.callback_query.message.edit_text(reply_text)
 
         return self.TYPING_REPLY
-
 
 
     async def discord_guild(self, update, context) -> int:
@@ -490,6 +472,7 @@ class TelegramBot:
         and callback data, if available.
         """
 
+        global DEBUG_MODE
         text = update.message.text
         category = context.user_data["choice"].lower()
         guild_id = context.user_data["discord guild"]
@@ -497,16 +480,19 @@ class TelegramBot:
         if "last callback" not in context.user_data: context.user_data["last callback"] = None
         callback_data = context.user_data["last callback"]
 
-        log(f"received_information() callback_data: {callback_data}") # TODO: Remove
-        log(f"received_information() category: {category}")
-        log(f"received_information() update.callback_query: {update.callback_query}")
-        log(f"received_information() UPDATE: {update}")
+        # Optional logging if currently in debugging
+        if DEBUG_MODE:
+            log(
+                f"received_information() CALLBACK_DATA: {callback_data}"
+                f"received_information() CATEGORY: {category}"
+                f"received_information() UPDATE.CALLBACK_QUERY: {update.callback_query}"
+            )
 
-
+        removal_triggers = ("Remove roles", "Remove channels")
+        non_removable = ("discord handle", "discord guild", "delete my data")
 
         # Possibility: User wants to store data, not remove it
-        removal_triggers = ("Remove roles", "Remove channels")
-        if callback_data not in removal_triggers:
+        if callback_data not in removal_triggers or category in non_removable:
 
             # ====================   CASE: STORE DATA   ====================
 
@@ -556,7 +542,7 @@ class TelegramBot:
                     reply_text = f"{text} doesn't seem to exist on {guild_name}."
 
                 if category == "discord channels":
-                    reply_text += f" Please choose a text channel from this list or go back to /menu."
+                    reply_text += f" Please choose a text channel from this list or go back to /menu:"
                     reply_text += iter_to_str(channels_available)
 
                 else:
@@ -577,17 +563,17 @@ class TelegramBot:
             # Possibility: No entry yet under this key -> Create entry if in allow_list
             allow_list = ["discord handle", "discord guild"]
             if (category not in context.user_data) and (category in allow_list):
-                log(f"received_information():\tPOSSIBILITY 1: NO KEY FOUND -> CREATE ENTRY")
+                if DEBUG_MODE: log(f"received_information():\tPOSSIBILITY 1: NO KEY FOUND -> CREATE ENTRY")
                 context.user_data[category] = text
 
             # Possibility: Key known & points to set -> Add to set (i.e. for roles, channels)
             elif isinstance(context.user_data[category], set):
-                log(f"received_information():\tPOSSIBILITY 2: ADD TO SET")
+                if DEBUG_MODE: log(f"received_information():\tPOSSIBILITY 2: ADD TO SET")
                 context.user_data[category].add(text)
 
             # Possibility: Key known & points to anything other than a set -> Overwrite
             else:
-                log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
+                if DEBUG_MODE: log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
                 context.user_data[category] = text
 
             # TODO: If coming from roles or channels: Ask if another should be added
@@ -597,11 +583,6 @@ class TelegramBot:
             if category == "discord guild" and check:
                 context.user_data["discord roles"] = set()
                 context.user_data["discord channels"] = set()
-
-            log(
-                f"RECEIVED INFORMATION:\n\category type: "
-                f"{type(context.user_data[category])}\ntext: {text}\ncategory: {category}"
-            )
 
             # Relay changes to Discord bot
             await self.refresh_discord_bot()
@@ -630,13 +611,13 @@ class TelegramBot:
             current_roles = context.user_data["discord roles"]
 
             if text in current_roles:
+
                 current_roles.remove(text)
                 context.user_data["discord roles"] = current_roles
+
                 reply_text = f"\n'{text}' removed.\n"
-
-                log(f"Roles right now: {context.user_data['discord roles']}") # TODO: Remove
-
                 reply_text += "Do you want to remove another role?"
+
                 buttons = [("Yes", "Remove roles"), ("No", "success_msg")]
                 button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
                 reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
@@ -645,8 +626,9 @@ class TelegramBot:
                 return self.CHOOSING
 
             else:
+
                 reply_text = f"{text} is not in the list."
-                reply_text += f" Please choose a role to remove from this list or go back to /menu."
+                reply_text += f" Please choose a role to remove from this list or go back to /menu:"
                 reply_text += iter_to_str(current_channels)
 
                 await self.send_msg(reply_text, update)
@@ -659,10 +641,8 @@ class TelegramBot:
             if text in current_channels:
                 current_channels.remove(text)
                 context.user_data["discord channels"] = current_channels
+
                 reply_text = f"\n'{text}' removed.\n"
-
-                log(f"Channels right now: {context.user_data['discord channels']}") # TODO: Remove
-
                 reply_text += "Do you want to remove another channel?"
                 buttons = [("Yes", "Remove channels"), ("No", "success_msg")]
                 button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
@@ -673,31 +653,21 @@ class TelegramBot:
 
             else:
                 reply_text = f"{text} is not in the list."
-                reply_text += f" Please choose a channel to remove from this list or go back to /menu."
+                reply_text += f" Please choose a channel to remove from this list or go back to /menu:"
                 reply_text += iter_to_str(current_channels)
 
                 await self.send_msg(reply_text, update)
 
-
-#        elif callback_data == "Add roles":
-#
-#            # Ask if another should be added/removed. I
-#            msg = f"Do you want to add another role?"
-#            buttons = [("Yes", "Add roles"), ("No", "success_msg")]
-#            # TODO: Make old keyboard disappear?
-
         else:
             log(f"UNHANDLED CALLBACK IN received_information: {callback_data}")
 
-        #button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
-        #reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
-        #await self.send_msg("Please choose:", update, reply_markup=reply_markup)
         return
 
 
     async def received_callback(self, update, context) -> int:
         """Callback logic is stored here. Any inline button will redirect here."""
 
+        global DEBUG_MODE
         category = context.user_data["choice"].lower()
         guild_id = context.user_data["discord guild"]
         guild_name = await self.discord_bot.get_guild(guild_id)
@@ -708,24 +678,25 @@ class TelegramBot:
         # Hide last inline keyboard
         await query.message.edit_reply_markup()
 
-        log(f"GOT CALLBACK QUERY {query}")
-        log(f"CALLBACK DATA {callback_data}")
-        log(f"category: {category}")
-        log(f"UPDATE: {update}")
-        log(f"UPDATE KEYS: {dir(update)}")
-        log(f"UPDATE.MESSAGE: {update.message}")
-        log(f"UPDATE.CALLBACK_QUERY.MESSAGE: {update.callback_query.message}")
-        log(f"CONTEXT DATA: {dir(context)}")
+        # Optional logging if currently in debugging
+        if DEBUG_MODE:
+            log(
+                f"CALLBACK QUERY {query}"
+                f"CALLBACK DATA {callback_data}"
+                f"CATEGORY: {category}"
+                f"UPDATE.MESSAGE: {update.message}"
+                f"UPDATE.CALLBACK_QUERY.MESSAGE: {update.callback_query.message}"
+                f"UPDATE: {update}"
+            )
 
         # Possibility: User pressed "Back" -> Back to main menu
         if callback_data == "Back":
-            log(f"received_callback(): callback_data = {callback_data}")
+
             await update.callback_query.edit_message_text("Going back to menu...")
             return await self.start(update, context)
 
         # Possibility: User pressed "No" button in received_information()
         elif callback_data == "success_msg":
-            log("category == 'success_msg'")
 
             ignore_list = ["last callback", "choice"]
             show_data = {k: v for k, v in context.user_data.items() if k not in ignore_list}
@@ -770,9 +741,6 @@ class TelegramBot:
             return await self.start(update, context)
 
 
-
-
-
     async def show_source(self, update, context) -> None:
         """Display link to github."""
         await self.send_msg(
@@ -785,10 +753,10 @@ class TelegramBot:
 
 
     async def debug(self, update, context) -> None:
-        """Display some quick data for debugging."""
+        """Display some quick bot data for debugging."""
+
         chat_id = update.message.chat_id if update.message else context._chat_id
         debug_id = int(os.environ["DEBUG_ID"])
-        users = read_pickle('./data')["user_data"]
 
         if chat_id == debug_id:
 
@@ -800,33 +768,22 @@ class TelegramBot:
             all_channels = [x for x in all_channels if "ticket" not in x.name]
             all_channels = [x for x in all_channels if x.category_id == 852459762640486400]
 
-
-            contributors_category_channel = guild.get_channel(852459762640486400)
             devs_channel = guild.get_channel(860920370764840990)
             bot_role = guild.get_role(1055915585332056076)
             contributors_channel = guild.get_channel(852459854844395540)
 
             bot = guild.get_member(1031609181700104283)
-            contributors_chan_members = contributors_channel.members
             bot_channels = [x.name for x in all_channels if bot in x.members]
 
             msg = ""
+            msg = (
+                f"\nBot roles: {[x.name for x in guild.get_member(1031609181700104283).roles]}\n"
+                f"\nThreads visible to bot under devs channel: {[x.name for x in devs_channel.threads]}\n"
+                f"\nThreads visible to bot under contributors channel: {[x.name for x in contributors_channel.threads]}\n"
+                f"\nBot is member of channels:\n{bot_channels}"
+                f"\n\n/menu  |  /done  |  /github"
+            )
 
-            for TG_id, data in users.items():
-                if 'discord handle' in data:
-                    msg += f"\n\n>{data['discord handle']}< {TG_id}\n"
-                else:
-                    msg += (f"\n\n{TG_id}")
-
-                msg += return_pretty(data, len_lines=6)
-
-            msg += f"\nBot roles: {[x.name for x in guild.get_member(1031609181700104283).roles]}\n"
-            msg += f"\ndevs channel permissions inherited from contributors category? {devs_channel.permissions_synced}\n"
-            msg += f"\ncontributors channel permissions inherited from contributors category? {contributors_channel.permissions_synced}\n"
-            msg += f"\nThreads visible to bot under devs channel: {[x.name for x in devs_channel.threads]}\n"
-            msg += f"\nThreads visible to bot under contributors channel: {[x.name for x in contributors_channel.threads]}\n"
-            msg += f"\nBot is member of channels:\n{bot_channels}"
-            msg += "\n\n/menu  |  /done  |  /github"
             await self.send_msg(msg, update)
             return ConversationHandler.END
 
@@ -849,6 +806,7 @@ class TelegramBot:
 
     async def refresh_discord_bot(self) -> None:
         """Needs to be called for changes of notification settings to take effect."""
+        global DEBUG_MODE
 
         # Update pickle db
         await self.application.update_persistence()
@@ -856,7 +814,9 @@ class TelegramBot:
 
         # Reload pickle file in Discord bot & update notification triggers accordingly
         await self.discord_bot.refresh_data()
-        log("REFRESHED DISCORD_BOT")
+
+        if DEBUG_MODE:
+            log("REFRESHED DISCORD_BOT")
 
 
     async def run(self) -> None:
