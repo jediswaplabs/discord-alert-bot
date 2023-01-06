@@ -17,7 +17,7 @@ import asyncio
 logging.basicConfig(format="%(asctime)s :\n%(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 # Toggle more extensive logging (bot data, Discord messages, TG inline button presses)
-debug_mode = True
+debug_mode = False
 
 # Instantiate bots
 disc_bot = DiscordBot(debug_mode=debug_mode)
