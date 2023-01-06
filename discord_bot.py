@@ -12,14 +12,11 @@ from pandas import read_pickle
 from helpers import return_pretty, log, iter_to_str
 load_dotenv()
 
-# Set to True to receive a TG notification for any msg picked up by the bot
-DEBUG_MODE = False
-DEBUG_ID = int(os.environ["DEBUG_ID"])
 
 class DiscordBot:
     """A class to encapsulate all relevant methods of the Discord bot."""
 
-    def __init__(self):
+    def __init__(self, debug_mode=False):
         """Constructor of the class. Initializes some instance variables."""
 
         # Instantiate Telegram bot to send out messages to users
@@ -31,7 +28,8 @@ class DiscordBot:
         self.discord_telegram_map = {"handles": {}, "roles": {}}
         # Dict to store whitelisted channels per TG_id if user has specified any
         self.channel_whitelist = {}
-
+        # Switch on logging of bot data & callback data (inline button presses) for debugging
+        self.debug_mode = debug_mode
         # Dictionary {telegram id: {data}}
         self.users = dict()
         # Path to shared database (data entry via telegram_bot.py)
@@ -47,8 +45,6 @@ class DiscordBot:
             self.users = read_pickle(self.data_path)["user_data"]
         except FileNotFoundError:
             return    # Pickle file will be created automatically
-
-        log('discord_bot.refresh_data(self): self.users right now:', self.users)
 
         # Wipe listening_to, discord_telegram_map, channel_whitelist
         self.listening_to = {"handles": set(), "roles": set()}
@@ -97,11 +93,12 @@ class DiscordBot:
             if "discord channels" in v:
                 self.channel_whitelist[k] = v["discord channels"]
 
-        log(
-            f"\nlistening_to:\t\t{self.listening_to}"
-            f"\ndiscord_telegram_map:\t{self.discord_telegram_map}"
-            f"\nchannel_whitelist:\t{self.channel_whitelist}\n"
-        )
+        if self.debug_mode:
+            log(
+                f"\nlistening_to:\t\t{self.listening_to}"
+                f"\ndiscord_telegram_map:\t{self.discord_telegram_map}"
+                f"\nchannel_whitelist:\t{self.channel_whitelist}"
+            )
 
     async def send_to_TG(self, telegram_user_id, msg, parse_mode='Markdown') -> None:
         """
@@ -154,7 +151,6 @@ class DiscordBot:
         guild = await self.get_guild(guild_id)
         user = guild.get_member_named(discord_username)
         roles = [role.name for role in user.roles]
-        log(f"get_user_roles(): Got these roles for {discord_username}: {roles}")
 
         return roles
 
@@ -207,7 +203,6 @@ class DiscordBot:
 
     async def run_bot(self) -> None:
         """Actual logic of the bot is stored here."""
-        global DEBUG_MODE, DEBUG_ID
 
         # Update data to listen to at startup
         await self.refresh_data()
@@ -230,30 +225,25 @@ class DiscordBot:
         @client.event
         async def on_message(message):
 
-            # If in debugging: Send msg details to admin TG
-            if DEBUG_MODE:
-                msg = (
-                    f"CONTENT: {message.content}\n"
-                    f"CHANNEL: {message.channel.name}\n"
-                    f"\n"
-                    f"MENTIONS: {message.mentions}\n"
-                    f"ROLE MENTIONS: {message.role_mentions}\n"
-                    f"CHANNEL MENTIONS: {message.channel_mentions}\n"
-                    f"EMBEDS: {message.embeds}\n"
-                    f"FLAGS: {message.flags}\n"
-                    f"ATTACHMENTS: {message.attachments}\n"
+            if self.debug_mode:
+                log(
+                    f"Discord message: {message}\n"
+                    f"message.channel.name: {message.channel.name}\n"
+                    f"message.mentions: {message.mentions}\n"
+                    f"message.role_mentions: {message.role_mentions}\n"
+                    f"message.channel_mentions: {message.channel_mentions}\n"
+                    f"message.embeds: {message.embeds}\n"
+                    f"message.flags: {message.flags}\n"
+                    f"message.attachments: {message.attachments}\n"
                 )
-                await self.send_to_TG(DEBUG_ID, f"{msg}")
 
-            log(f"Discord message -> {message}")
-            log(f"message.mentions -> {message.mentions}")
-            log(f"message.channel.name -> {message.channel.name}")
             line = "\n"+("~"*22)+"\n"
 
             # If no user mentions in message -> Skip this part
             if message.mentions != []:
 
-                log(f"USER MENTIONS IN MESSAGE: {message.mentions}")
+                if self.debug_mode: log(f"USER MENTIONS IN MESSAGE: {message.mentions}")
+
                 channel = message.channel.name
                 whitelist = self.channel_whitelist
 
@@ -264,7 +254,8 @@ class DiscordBot:
                     # Cycle through all user mentions in message
                     if user in message.mentions:
 
-                        log(f"USER IN MENTIONS: {message.author} mentioned {username}")
+                        if self.debug_mode: log(f"USER IN MENTIONS: {message.author} mentioned {username}")
+
                         author, guild, channel = message.author, message.guild, message.channel.name
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
@@ -276,20 +267,23 @@ class DiscordBot:
                         for _id in self.discord_telegram_map["handles"][username]:
 
                             target_guild_id = self.users[_id]["discord guild"]
-                            log(
-                                f"GUILD CHECK: {type(guild.id)} {guild.id} =="
-                                f" {type(target_guild_id)} {target_guild_id}:"
-                                f" {guild.id == target_guild_id}"
-                            )
+
+                            if self.debug_mode:
+                                log(
+                                    f"GUILD CHECK: {type(guild.id)} {guild.id} =="
+                                    f" {type(target_guild_id)} {target_guild_id}:"
+                                    f" {guild.id == target_guild_id}"
+                                )
 
                             # Condition 1: msg guild matches guild set up by user
                             if guild.id == target_guild_id:
 
-                                log(
-                                    f"CHANNEL CHECK: {type(channel)} {channel} in"
-                                    f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
-                                    f"SET UP CHANNELS: {whitelist[_id]}"
-                                )
+                                if self.debug_mode:
+                                    log(
+                                        f"CHANNEL CHECK: {type(channel)} {channel} in"
+                                        f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
+                                        f"SET UP CHANNELS: {whitelist[_id]}"
+                                    )
 
                                 # Condition 2: Channel matches or no channels set up
                                 if whitelist[_id] == set():
@@ -302,7 +296,8 @@ class DiscordBot:
             # If no role mentions in message -> Skip this part
             if message.role_mentions != [] or message.mention_everyone:
 
-                log(f"ROLE MENTIONS IN MESSAGE: {message.role_mentions}")
+                if self.debug_mode: log(f"ROLE MENTIONS IN MESSAGE: {message.role_mentions}")
+
                 channel = message.channel.name
                 whitelist = self.channel_whitelist
                 rolenames = [x.name for x in message.role_mentions]
@@ -316,7 +311,8 @@ class DiscordBot:
 
                     if role in rolenames:
 
-                        log(f"MATCHED A ROLE: {message.author} mentioned {role}")
+                        if self.debug_mode: log(f"MATCHED A ROLE: {message.author} mentioned {role}")
+
                         author, guild, url = message.author, message.guild, message.jump_url
                         channel = message.channel.name
                         contents = message.content[message.content.find(">")+1:]
@@ -328,11 +324,12 @@ class DiscordBot:
 
                             target_guild_id = self.users[_id]["discord guild"]
 
-                            log(
-                                f"GUILD CHECK: {type(guild.id)} {guild.id} =="
-                                f" {type(target_guild_id)} {target_guild_id}:"
-                                f" {guild.id == target_guild_id}"
-                            )
+                            if self.debug_mode:
+                                log(
+                                    f"GUILD CHECK: {type(guild.id)} {guild.id} =="
+                                    f" {type(target_guild_id)} {target_guild_id}:"
+                                    f" {guild.id == target_guild_id}"
+                                )
 
                             # Condition 1: msg guild matches guild set up by user
                             if guild.id == target_guild_id:

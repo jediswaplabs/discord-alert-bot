@@ -36,14 +36,11 @@ from telegram.ext import (
 load_dotenv("./.env")
 filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
 
-# Set to True to print callback data (inline button presses) to log. No user data is logged.
-DEBUG_MODE = False
-
 
 class TelegramBot:
     """A class to encapsulate all relevant methods of the Telegram bot."""
 
-    def __init__(self, discord_bot_instance):
+    def __init__(self, discord_bot_instance, debug_mode=False):
         """
         Constructor of the class. Initializes certain instance variables.
         """
@@ -51,7 +48,8 @@ class TelegramBot:
         self.data_path = "./data"
         # Discord bot instance
         self.discord_bot = discord_bot_instance
-
+        # Switch on logging of bot data & callback data (inline button presses) for debugging
+        self.debug_mode = debug_mode
         # Set up conversation states & inline keyboard
         self.CHOOSING, self.TYPING_REPLY = range(2)
         reply_keyboard = [
@@ -197,13 +195,13 @@ class TelegramBot:
 
     async def inline_submenu(self, update, context) -> int:
         """A dynamic second button menu based on user's choice in main menu."""
-        global DEBUG_MODE
+
         # Save category chosen by user for further conversation flow
         context.user_data["choice"] = update.message.text
         category = context.user_data["choice"].lower()
         button_list = []
 
-        if DEBUG_MODE:
+        if self.debug_mode:
             log(f"GOT CATEGORY IN inline_submenu(): {category}")
 
         if category == "discord roles":
@@ -234,7 +232,8 @@ class TelegramBot:
             f"Please enter your Discord username with or without the discriminator "
             f"(i.e. {rand_name} or {rand_user}). "
             f"You can find it by tapping your avatar or in settings -> "
-            f"my account -> username."
+            f"my account -> username. "
+            f"Hit /menu to go back."
         )
         await self.send_msg(reply_text, update)
         return self.TYPING_REPLY
@@ -243,8 +242,7 @@ class TelegramBot:
     async def roles_menu(self, update, context) -> int:
         """Discord roles main menu."""
 
-        global DEBUG_MODE
-        if DEBUG_MODE and not update.callback_query:
+        if self.debug_mode and not update.callback_query:
             log(f"ARRIVED AT roles_menu() WITH EMPTY CALLBACK")
 
         context.user_data["choice"] = "discord roles"
@@ -311,7 +309,7 @@ class TelegramBot:
 
         # Send back to main menu if callback not recognized
         else:
-            log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
+            if self.debug_mode: log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
             return await self.start(update, context)
 
         # Prompt for user input
@@ -323,8 +321,7 @@ class TelegramBot:
     async def channels_menu(self, update, context) -> int:
         """Discord channels main menu."""
 
-        global DEBUG_MODE
-        if DEBUG_MODE and not update.callback_query:
+        if self.debug_mode and not update.callback_query:
             log(f"ARRIVED AT channels_menu() WITH EMPTY CALLBACK")
 
         context.user_data["choice"] = "discord channels"
@@ -334,10 +331,11 @@ class TelegramBot:
         active_channels = context.user_data["discord channels"]
         channels_available = await self.discord_bot.get_channels(guild_id)
 
-        # Optional logging if currently in debugging
-        if DEBUG_MODE:
-            log(f"channels_menu(): CHANNELS_AVAILABLE: {channels_available}")
-            log(f"channels_menu(): ACTIVE_CHANNELS: {active_channels}")
+        if self.debug_mode:
+            log(
+                f"channels_menu(): CHANNELS_AVAILABLE: {channels_available}\n"
+                f"channels_menu(): ACTIVE_CHANNELS: {active_channels}"
+            )
 
         callback_data = update.callback_query.data
 
@@ -397,7 +395,7 @@ class TelegramBot:
 
         # Send back to main menu if callback not recognized
         else:
-            if DEBUG_MODE: log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
+            if self.debug_mode: log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
             return await self.start(update, context)
 
         # Prompt for user input
@@ -472,7 +470,6 @@ class TelegramBot:
         and callback data, if available.
         """
 
-        global DEBUG_MODE
         text = update.message.text
         category = context.user_data["choice"].lower()
         guild_id = context.user_data["discord guild"]
@@ -480,11 +477,10 @@ class TelegramBot:
         if "last callback" not in context.user_data: context.user_data["last callback"] = None
         callback_data = context.user_data["last callback"]
 
-        # Optional logging if currently in debugging
-        if DEBUG_MODE:
+        if self.debug_mode:
             log(
-                f"received_information() CALLBACK_DATA: {callback_data}"
-                f"received_information() CATEGORY: {category}"
+                f"received_information() CALLBACK_DATA: {callback_data}\n"
+                f"received_information() CATEGORY: {category}\n"
                 f"received_information() UPDATE.CALLBACK_QUERY: {update.callback_query}"
             )
 
@@ -542,8 +538,8 @@ class TelegramBot:
                     reply_text = f"{text} doesn't seem to exist on {guild_name}."
 
                 if category == "discord channels":
-                    reply_text += f" Please choose a text channel from this list or go back to /menu:"
                     reply_text += iter_to_str(channels_available)
+                    reply_text += f" Please choose a channel from the above list or go back to /menu."
 
                 else:
                     cat = category.replace("discord", "Discord").rstrip("s")
@@ -563,17 +559,17 @@ class TelegramBot:
             # Possibility: No entry yet under this key -> Create entry if in allow_list
             allow_list = ["discord handle", "discord guild"]
             if (category not in context.user_data) and (category in allow_list):
-                if DEBUG_MODE: log(f"received_information():\tPOSSIBILITY 1: NO KEY FOUND -> CREATE ENTRY")
+                if self.debug_mode: log(f"received_information():\tPOSSIBILITY 1: NO KEY FOUND -> CREATE ENTRY")
                 context.user_data[category] = text
 
             # Possibility: Key known & points to set -> Add to set (i.e. for roles, channels)
             elif isinstance(context.user_data[category], set):
-                if DEBUG_MODE: log(f"received_information():\tPOSSIBILITY 2: ADD TO SET")
+                if self.debug_mode: log(f"received_information():\tPOSSIBILITY 2: ADD TO SET")
                 context.user_data[category].add(text)
 
             # Possibility: Key known & points to anything other than a set -> Overwrite
             else:
-                if DEBUG_MODE: log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
+                if self.debug_mode: log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
                 context.user_data[category] = text
 
             # TODO: If coming from roles or channels: Ask if another should be added
@@ -628,7 +624,7 @@ class TelegramBot:
             else:
 
                 reply_text = f"{text} is not in the list."
-                reply_text += f" Please choose a role to remove from this list or go back to /menu:"
+                reply_text += f" Please choose a role to remove from this list or go back to /menu."
                 reply_text += iter_to_str(current_channels)
 
                 await self.send_msg(reply_text, update)
@@ -653,13 +649,13 @@ class TelegramBot:
 
             else:
                 reply_text = f"{text} is not in the list."
-                reply_text += f" Please choose a channel to remove from this list or go back to /menu:"
+                reply_text += f" Please choose a channel to remove from this list or go back to /menu."
                 reply_text += iter_to_str(current_channels)
 
                 await self.send_msg(reply_text, update)
 
         else:
-            log(f"UNHANDLED CALLBACK IN received_information: {callback_data}")
+            if self.debug_mode: log(f"UNHANDLED CALLBACK IN received_information: {callback_data}")
 
         return
 
@@ -667,7 +663,6 @@ class TelegramBot:
     async def received_callback(self, update, context) -> int:
         """Callback logic is stored here. Any inline button will redirect here."""
 
-        global DEBUG_MODE
         category = context.user_data["choice"].lower()
         guild_id = context.user_data["discord guild"]
         guild_name = await self.discord_bot.get_guild(guild_id)
@@ -678,14 +673,13 @@ class TelegramBot:
         # Hide last inline keyboard
         await query.message.edit_reply_markup()
 
-        # Optional logging if currently in debugging
-        if DEBUG_MODE:
+        if self.debug_mode:
             log(
-                f"CALLBACK QUERY {query}"
-                f"CALLBACK DATA {callback_data}"
-                f"CATEGORY: {category}"
-                f"UPDATE.MESSAGE: {update.message}"
-                f"UPDATE.CALLBACK_QUERY.MESSAGE: {update.callback_query.message}"
+                f"CALLBACK QUERY: {query}\n"
+                f"CALLBACK DATA: {callback_data}\n"
+                f"CATEGORY: {category}\n"
+                f"UPDATE.MESSAGE: {update.message}\n"
+                f"UPDATE.CALLBACK_QUERY.MESSAGE: {update.callback_query.message}\n"
                 f"UPDATE: {update}"
             )
 
@@ -715,7 +709,7 @@ class TelegramBot:
 
         # Possibility: User chose "Discord roles" at main menu
         elif category == "discord roles":
-            log("category == 'discord roles'")
+            if self.debug_mode: log("category == 'discord roles'")
 
             # Possibility: No Discord username is set yet. Forward to username prompt instead.
             if "discord handle" not in context.user_data:
@@ -726,7 +720,7 @@ class TelegramBot:
 
         # Possibility: User chose "Discord channels" at main menu
         elif category == "discord channels":
-            log("category == 'discord channels'")
+            if self.debug_mode: log("category == 'discord channels'")
 
             # Possibility: No Discord username is set yet. Forward to username prompt instead.
             if "discord handle" not in context.user_data:
@@ -737,7 +731,7 @@ class TelegramBot:
 
         # Any undefined button will fall back to the main menu
         else:
-            log(f"received_callback(): UNHANDLED CALLBACK DATA: {callback_data}")
+            if self.debug_mode: log(f"received_callback(): UNHANDLED CALLBACK DATA: {callback_data}")
             return await self.start(update, context)
 
 
@@ -806,7 +800,6 @@ class TelegramBot:
 
     async def refresh_discord_bot(self) -> None:
         """Needs to be called for changes of notification settings to take effect."""
-        global DEBUG_MODE
 
         # Update pickle db
         await self.application.update_persistence()
@@ -815,7 +808,7 @@ class TelegramBot:
         # Reload pickle file in Discord bot & update notification triggers accordingly
         await self.discord_bot.refresh_data()
 
-        if DEBUG_MODE:
+        if self.debug_mode:
             log("REFRESHED DISCORD_BOT")
 
 

@@ -16,10 +16,12 @@ import asyncio
 # Configure logging
 logging.basicConfig(format="%(asctime)s :\n%(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
+# Toggle more extensive logging (bot data, Discord messages, TG inline button presses)
+debug_mode = True
 
 # Instantiate bots
-disc_bot = DiscordBot()
-tg_bot = TelegramBot(disc_bot)
+disc_bot = DiscordBot(debug_mode=debug_mode)
+tg_bot = TelegramBot(disc_bot, debug_mode=debug_mode)
 
 # Initialize Telegram bot. Discord bot gets initialized from within TG bot instance
 asyncio.run(tg_bot.run())
