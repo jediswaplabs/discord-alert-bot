@@ -313,21 +313,13 @@ class TelegramBot:
 
         return self.TYPING_REPLY
 
-
+    # TODO: Remove old channels menu
     async def discord_channels(self, update, context) -> int:
         """Ask the user for info about the selected predefined choice."""
 
         context.user_data["choice"] = "discord channels"
         guild_id = context.user_data["discord guild"]
-        log(
-            f"GOT GUILD ID: {guild_id} "
-            f"TYPE: {type(guild_id)}"
-        )
 
-        # Possibility: No Discord username is set yet. Forward to username prompt instead.
-        if "discord handle" not in context.user_data:
-            await self.send_msg("Please enter a Discord username first!", update)
-            return await self.discord_handle(update, context)
 
         # Parse message prompting for user input & send out
         guild_name = await self.discord_bot.get_guild(guild_id)
@@ -351,6 +343,85 @@ class TelegramBot:
         )
         await self.send_msg(reply_text, update)
         return self.TYPING_REPLY
+
+    async def channels_menu(self, update, context) -> int:
+        """Discord channels main menu."""
+
+        if not update.callback_query: log(f"ARRIVED AT channels_menu() WITH EMPTY CALLBACK")
+
+        context.user_data["choice"] = "discord channels"
+        guild_id = context.user_data["discord guild"]
+        discord_handle = context.user_data["discord handle"]
+        guild_name = await self.discord_bot.get_guild(guild_id)
+        active_channels = context.user_data["discord channels"]
+        channels_available = await self.discord_bot.get_channels(guild_id)
+
+        callback_data = update.callback_query.data
+
+        if active_channels == set():
+            reply_text = "Currently you are receiving notifications for all channels. "
+
+        else:
+            reply_text = "Currently your notifications are restricted to this subset of channels:"
+            reply_text += iter_to_str(active_channels)
+
+        # Adding a channel
+        if callback_data == "Add channels":
+
+            other_channels = set(channels_available) - active_channels
+
+            if other_channels == set():
+
+                reply_text = "You've already added all channels available to you. "
+                reply_text += "Please choose:"
+
+                buttons = [("Remove channels", "Remove channels"), ("Back", "Back")]
+                button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
+                reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+
+                await self.send_msg(reply_text, update, reply_markup=reply_markup)
+                return
+
+
+            else:
+                reply_text = f"Channels on {guild_name}:"
+                reply_text += iter_to_str(other_channels)
+                reply_text += (
+                    f"Please enter the name of a channel you would like"
+                    " to add to the subset notifications are active for,"
+                    " or hit /menu to go back."
+                )
+
+        # Removing a channel
+        elif callback_data == "Remove channels":
+
+            if active_channels == set():
+
+                reply_text += "Please choose:"
+                buttons = [("Add a channel", "Add channels"), ("Back", "Back")]
+                button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
+                reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+
+                await self.send_msg(reply_text, update, reply_markup=reply_markup)
+                return
+
+            else:
+                reply_text += (
+                    f"Please enter the name of a channel you would like"
+                    " to remove from the subset you receive notifications for,"
+                    " or hit /menu to go back."
+                )
+
+        # Send back to main menu if callback not recognized
+        else:
+            log(f"REDIRECTED TO MENU: CALLBACK DATA = {callback_data}")
+            return await self.start(update, context)
+
+        # Prompt for user input
+        await update.callback_query.message.edit_text(reply_text)
+
+        return self.TYPING_REPLY
+
 
 
     async def discord_guild(self, update, context) -> int:
@@ -535,6 +606,7 @@ class TelegramBot:
             # Relay changes to Discord bot
             await self.refresh_discord_bot()
 
+            # Show updated data to user
             ignore_list = ["last callback", "choice"]
             show_data = {k: v for k, v in context.user_data.items() if k not in ignore_list}
 
@@ -552,7 +624,7 @@ class TelegramBot:
 
         # ====================   CASE: REMOVE DATA   ====================
 
-        # Possibility: User wants to remove entered data, instead of adding it.
+        # Possibility: User wants to remove a role
         elif callback_data == "Remove roles":
 
             current_roles = context.user_data["discord roles"]
@@ -560,7 +632,6 @@ class TelegramBot:
             if text in current_roles:
                 current_roles.remove(text)
                 context.user_data["discord roles"] = current_roles
-                #await self.refresh_discord_bot()
                 reply_text = f"\n'{text}' removed.\n"
 
                 log(f"Roles right now: {context.user_data['discord roles']}") # TODO: Remove
@@ -576,23 +647,44 @@ class TelegramBot:
             else:
                 reply_text = f"{text} is not in the list."
                 reply_text += f" Please choose a role to remove from this list or go back to /menu."
-                reply_text += iter_to_str(current_roles)
+                reply_text += iter_to_str(current_channels)
+
+                await self.send_msg(reply_text, update)
+
+        # Possibility: User wants to remove a channel
+        elif callback_data == "Remove channels":
+
+            current_channels = context.user_data["discord channels"]
+
+            if text in current_channels:
+                current_channels.remove(text)
+                context.user_data["discord channels"] = current_channels
+                reply_text = f"\n'{text}' removed.\n"
+
+                log(f"Channels right now: {context.user_data['discord channels']}") # TODO: Remove
+
+                reply_text += "Do you want to remove another channel?"
+                buttons = [("Yes", "Remove channels"), ("No", "success_msg")]
+                button_list = [InlineKeyboardButton(x[0], callback_data=x[1]) for x in buttons]
+                reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
+
+                await self.send_msg(reply_text, update, reply_markup=reply_markup)
+                return self.CHOOSING
+
+            else:
+                reply_text = f"{text} is not in the list."
+                reply_text += f" Please choose a channel to remove from this list or go back to /menu."
+                reply_text += iter_to_str(current_channels)
 
                 await self.send_msg(reply_text, update)
 
 
-        elif callback_data == "Remove channels":
-            # Check if actually there.
-            # Remove
-            # Success message next
-            pass
-
-        elif callback_data == "Add roles":
-
-            # Ask if another should be added/removed. I
-            msg = f"Do you want to add another role?"
-            buttons = [("Yes", "Add roles"), ("No", "success_msg")]
-            # TODO: Make old keyboard disappear?
+#        elif callback_data == "Add roles":
+#
+#            # Ask if another should be added/removed. I
+#            msg = f"Do you want to add another role?"
+#            buttons = [("Yes", "Add roles"), ("No", "success_msg")]
+#            # TODO: Make old keyboard disappear?
 
         else:
             log(f"UNHANDLED CALLBACK IN received_information: {callback_data}")
@@ -631,7 +723,6 @@ class TelegramBot:
             await update.callback_query.edit_message_text("Going back to menu...")
             return await self.start(update, context)
 
-
         # Possibility: User pressed "No" button in received_information()
         elif callback_data == "success_msg":
             log("category == 'success_msg'")
@@ -654,24 +745,29 @@ class TelegramBot:
         # Possibility: User chose "Discord roles" at main menu
         elif category == "discord roles":
             log("category == 'discord roles'")
+
             # Possibility: No Discord username is set yet. Forward to username prompt instead.
             if "discord handle" not in context.user_data:
                 await update.callback_query.message.edit_text("Please enter a Discord username first!")
                 return await self.discord_handle(update, context)
-                # TODO: Check with deleted user if this works!
 
             return await self.roles_menu(update, context)
 
         # Possibility: User chose "Discord channels" at main menu
         elif category == "discord channels":
             log("category == 'discord channels'")
-            # TODO
-            pass
+
+            # Possibility: No Discord username is set yet. Forward to username prompt instead.
+            if "discord handle" not in context.user_data:
+                await update.callback_query.message.edit_text("Please enter a Discord username first!")
+                return await self.discord_handle(update, context)# TODO: Check with deleted user if this works!
+
+            return await self.channels_menu(update, context)
 
         # Any undefined button will fall back to the main menu
         else:
             log(f"received_callback(): UNHANDLED CALLBACK DATA: {callback_data}")
-            pass
+            return await self.start(update, context)
 
 
 
