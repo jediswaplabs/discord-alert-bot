@@ -196,15 +196,16 @@ class TelegramBot:
 
         # Save category chosen by user for further conversation flow
         context.user_data["choice"] = update.message.text
-        category = context.user_data["choice"]
+        category = context.user_data["choice"].lower()
         button_list = []
 
-        if category == "Discord roles":
+        log(f"GOT CATEGORY IN inline_submenu(): {category}")
+
+        if category == "discord roles":
             buttons = ["Add roles", "Remove roles", "Back"]
 
-        elif category == "Discord channels":
+        elif category == "discord channels":
             buttons = ["Add channels", "Remove channels", "Back"]
-        # TODO: Make old keyboard disappear!
 
         button_list = [InlineKeyboardButton(x, callback_data=x) for x in buttons]
         reply_markup = InlineKeyboardMarkup(self.build_button_menu(button_list, n_cols=2))
@@ -212,7 +213,6 @@ class TelegramBot:
         await self.send_msg("Please choose:", update, reply_markup=reply_markup)
 
         return self.CHOOSING
-        # Return CHOOSING or a newly created state?
 
 
     async def discord_handle(self, update, context) -> int:
@@ -405,7 +405,7 @@ class TelegramBot:
             reply_text,
             update,
             disable_web_page_preview=True,
-            parse_mode="Markdown")
+            parse_mode="Markdown"
         )
 
         return self.TYPING_REPLY
@@ -446,12 +446,13 @@ class TelegramBot:
         """
 
         text = update.message.text
-        category = context.user_data["choice"]
+        category = context.user_data["choice"].lower()
         guild_id = context.user_data["discord guild"]
         guild_name = await self.discord_bot.get_guild(guild_id)
         callback_data = None
         if update.callback_query: callback_data = update.callback_query.data
         log(f"CALLBACK DATA AT received_information(): {callback_data}") # TODO: Remove
+        log(f"CATEGORY AT received_information(): {category}")
 
         # Possibility: User wants to store data, not remove it
         removal_triggers = ("Remove roles", "Remove channels")
@@ -614,7 +615,7 @@ class TelegramBot:
     async def received_callback(self, update, context) -> int:
         """Callback logic is stored here. Any inline button will redirect here."""
 
-        category = context.user_data["choice"]
+        category = context.user_data["choice"].lower()
         guild_id = context.user_data["discord guild"]
         guild_name = await self.discord_bot.get_guild(guild_id)
         query = update.callback_query
@@ -783,18 +784,14 @@ class TelegramBot:
                     MessageHandler(filters.Regex("^Discord handle$"),
                         self.discord_handle
                     ),
-                    MessageHandler(filters.Regex("^Discord channels$"),
-                        self.discord_channels
-                    ),
-                    MessageHandler(filters.Regex("^Discord roles$"),
-                        self.inline_submenu
-                    ),
-                    # TODO: Add all buttons for inline_menu as 1 handler
                     MessageHandler(filters.Regex("^Discord guild$"),
                         self.discord_guild
                     ),
                     MessageHandler(filters.Regex("^Delete my data$"),
                         self.delete_my_data
+                    ),
+                    MessageHandler(filters.Regex("^(Discord channels|Discord roles)$"),
+                        self.inline_submenu
                     ),
                     CallbackQueryHandler(self.received_callback),
 
