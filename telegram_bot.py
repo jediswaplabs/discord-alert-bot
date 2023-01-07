@@ -625,7 +625,7 @@ class TelegramBot:
 
                 reply_text = f"{text} is not in the list."
                 reply_text += f" Please choose a role to remove from this list or go back to /menu."
-                reply_text += iter_to_str(current_channels)
+                reply_text += iter_to_str(current_roles)
 
                 await self.send_msg(reply_text, update)
 
