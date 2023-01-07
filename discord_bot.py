@@ -347,12 +347,6 @@ class DiscordBot:
                                 if channel in whitelist[_id]:
                                     await self.send_to_TG(_id, out_msg)
 
-                # DONE: Listen to role mentions
-                # DONE: Listen to specified subset of channels only
-                # DONE: Multiple servers? Works. Guild(s) need to be specified via TG
-                # DONE: Multiple bot instances? One per token only. Can be in multiple guilds
-                # TODO: Even less logging + Restrict file to last 24h only
-
 
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
         await client.start(DISCORD_TOKEN)

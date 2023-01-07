@@ -25,12 +25,3 @@ tg_bot = TelegramBot(disc_bot, debug_mode=debug_mode)
 
 # Initialize Telegram bot. Discord bot gets initialized from within TG bot instance
 asyncio.run(tg_bot.run())
-
-
-# DONE: Add botpic, about info, description
-# DONE: Implement Telegram frontend (button menu for data entry)
-# DONE: Command for users to delete their data
-# DONE: Prompt for discord handle, roles to listen to
-# DONE: Best way to run both bots within 1 thread asynchronously?
-# TODO: As little logging as possible once debugging is done
-# TODO: Regular scheduled uptime checks
