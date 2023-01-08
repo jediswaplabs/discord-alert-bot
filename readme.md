@@ -1,4 +1,4 @@
-# Discord Alerts Bot
+# JediSwap Alert Bot
 
 ![Preview](https://github.com/jediswaplabs/discord-alert-bot/blob/main/example.png)
 
