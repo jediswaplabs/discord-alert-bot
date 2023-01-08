@@ -11,6 +11,8 @@
 !sample.env
 !example.png
 !requirements.txt
+!state_diagram.mmd
+!state_diagram.png
 !LICENSE
 
 # Ignore any other files in subdirectories
