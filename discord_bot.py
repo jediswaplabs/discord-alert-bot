@@ -225,7 +225,7 @@ class DiscordBot:
         @client.event
         async def on_message(message):
 
-            if self.debug_mode:
+            if self.debug_mode == 'messages':
                 log(
                     f"Discord message: {message}\n"
                     f"message.channel.name: {message.channel.name}\n"
