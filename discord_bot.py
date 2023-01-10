@@ -105,6 +105,33 @@ class DiscordBot:
         Sends a message a specific Telegram user id.
         Defaults to Markdown V1 for inline link capability.
         """
+        signature = "| _back to /menu_ |"
+        escape_d = {
+            '.': '\.',
+            '!': '\!',
+            '-': '\-',
+            '#': '\#',
+            '>': '\>',
+            '<': '\<',
+            '.': '\.',
+            '_': '\_',
+            '`': '\`',
+            '*': '*',
+        }
+
+        # Escape markdown characters for main part of TG msg
+        header_end = msg.find("):\n")
+
+        no_header = msg[header_end+2:]
+        footer_start = no_header.find(22*"~")
+        discord_content = no_header[:footer_start]
+
+        header = msg[:header_end+2]
+        footer = no_header[footer_start:]
+        escaped_msg = discord_content.translate(msg.maketrans(escape_d))
+
+        msg = header + escaped_msg + footer
+
         await self.telegram_bot.send_message(
             chat_id=telegram_user_id,
             text=msg,
