@@ -99,6 +99,9 @@ class TelegramBot:
 
     async def send_msg(self, msg, update, **kwargs) -> None:
         """Wrapper function to send out messages in all conditions."""
+
+        # TODO: Replace chars to make markdown compatible.
+        
         if update.message:
             await update.message.reply_text(msg, **kwargs)
         else:

@@ -242,7 +242,7 @@ class DiscordBot:
             # If no user mentions in message -> Skip this part
             if message.mentions != []:
 
-                if self.debug_mode: log(f"USER MENTIONS IN MESSAGE: {message.mentions}")
+                if self.debug_mode: log(f"{len(message.mentions)} USER MENTIONS IN {message.channel.name}.")
 
                 channel = message.channel.name
                 whitelist = self.channel_whitelist

@@ -2,7 +2,7 @@ flowchart TB
     %% Documentation: https://mermaid-js.github.io/mermaid/#/flowchart
     %% To generate png file: mmdc -i <source>.mmd -o <target>.png
 
-    MENU(("/menu")):::entryPoint -->|Current active notifications...| CHOOSING((CHOOSING)):::state
+
 
 
     CHOOSING ==> guild("Discord guild"):::userInput
@@ -20,13 +20,16 @@ flowchart TB
     done --> |"Bring back the /menu anytime!"| End(("END")):::termination
 
     submenu ---> |"[save button press] <br /> Please enter the name <br /> of a role / channel ..."| TYPING_REPLY((TYPING_REPLY)):::state
-    submenu --> |"[if 'Back']"| MENU
+    submenu --> |"[if 'Back']"| MENU(("/menu")):::entryPoint
+
+    TYPING_REPLY --> |"[if coming from inline button menu: <br /> store/delete data according to logic in <br /> received_callback()]"| add_remove_more("Inline button menu: <br /> | Add/Remove more? | Back |"):::inlineMenu
+    TYPING_REPLY --> |"[save choice: text] <br /> [store/delete data according to logic in <br /> received_information()] "| MENU
 
     add_remove_more --> |"[if 'Add/Remove more']"| TYPING_REPLY
     add_remove_more --> |"[if 'Back']"| MENU
 
-    TYPING_REPLY --> |"[if coming from inline button menu: <br /> store/delete data according to logic in <br /> received_callback()]"| add_remove_more("Inline button menu: <br /> | Add/Remove more? | Back |"):::inlineMenu
-    TYPING_REPLY --> |"[save choice: text] <br /> [store/delete data according to logic in <br /> received_information()] "| MENU
+    MENU ---->|Current active notifications...| CHOOSING((CHOOSING)):::state
+
 
     classDef userInput fill:#2a5279, color:#ffffff, stroke:#ffffff
     classDef inlineMenu fill:#ffff66, color:#000000, stroke:#ffffff

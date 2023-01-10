@@ -25,21 +25,27 @@ A Telegram bot sending out a real time notification each time your handle is men
 
 ## Requirements & Installation
 
-The bot requires python >= 3.7 (3.9 is recommended) and uses the packages listed in `requirements.txt`.
-The best practice would be to install a virtual environment and install the
-requirements afterwards using `pip`:
+The bot requires python 3.9 and uses the packages listed in [requirements.txt](./requirements.txt). The best practice would be to install a virtual environment.
 
-```
-pip install -r requirements.txt
-```
+* Install & activate a virtual environment using either `venv`:
 
-If you're using [anaconda](https://www.anaconda.com), you can create a virtual environment and install the requirements using this code:
+    ```
+    python -m venv venv
+    source venv/bin/activate    # `deactivate` to leave again
+    ```
 
-```
-conda create -n discord-alert-bot python=3.9
-conda activate discord-alert-bot
-pip install -r requirements.txt
-```
+    or [anaconda](https://www.anaconda.com):
+
+    ```
+    conda create -n venv python=3.9
+    conda activate venv         # `conda deactivate` to leave again
+    ```
+
+* Install dependencies:
+
+    ```
+    pip install -r requirements.txt
+    ```
 
 ## State Diagram
 
