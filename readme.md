@@ -5,7 +5,7 @@
 ![Preview](https://github.com/jediswaplabs/discord-alert-bot/blob/main/example.png)
 
 
-A Telegram bot sending out a real time notification each time your handle is mentioned on the JediSwap Discord server. To use, start a conversation with [@JediSwapAlertBot](https://t.me/JediSwapAlertBot) on Telegram. This will bring up the bot menu, where you can set up your Discord handle. After entering it, the bot will forward any message mentioning your Discord handle or any of your roles to your Telegram. Notifications can be deactivated for any role or channel using the bot menu.
+A Telegram bot sending out a real time notification each time your handle is mentioned on the JediSwap Discord server. To use, start a conversation with [@JediSwapAlertBot](https://t.me/JediSwapAlertBot) on Telegram. This will bring up the bot menu, where you can set up your Discord handle. After entering it and verifying via Discord, the bot will forward any message mentioning your Discord handle or any of your roles to your Telegram. Notifications can be deactivated for any role or channel using the bot menu.
 
 ## Running the bot on your Discord server
 
@@ -46,6 +46,10 @@ The bot requires python 3.9 and uses the packages listed in [requirements.txt](.
     ```
     pip install -r requirements.txt
     ```
+
+## Discord Authentication
+
+This bot uses [Oauth2 authentication](https://discord.com/developers/docs/topics/oauth2), which requires a redirect url to send back the verification info safely. Sending oauth data back to a Telegram bot therefore requires a workaround. To enable users to verify their Discord handle, set up an aws api gateway as described [here](https://stackoverflow.com/a/42457831), and don't forget to add the url to the whitelist on the [Discord developer portal](https://discord.com/developers/) under Applications -> OAuth2 -> Redirects.
 
 ## State Diagram
 

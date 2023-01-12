@@ -166,6 +166,10 @@ class DiscordBot:
         guild = await self.get_guild(guild_id)
         return guild.get_member_named(username)
 
+    async def get_user_id(self, guild_id, username) -> str:
+        """Takes guild id & username, str(<Discord ID>)."""
+        user = await self.get_user(guild_id, username)
+        return user.id
 
     async def get_guild_roles(self, guild_id) -> list:
         """Takes guild id returns list of names of all roles on guild."""

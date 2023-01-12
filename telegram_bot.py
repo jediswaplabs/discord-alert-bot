@@ -92,6 +92,8 @@ class TelegramBot:
         context.user_data["discord channels"] = set()
         context.user_data["discord guild"] = int(os.getenv("DEFAULT_GUILD"))
         context.user_data["last callback"] = None
+        context.user_data["verified discord"] = False
+        context.user_data["discord id"] = None
 
         await self.refresh_discord_bot()
         return
@@ -106,8 +108,34 @@ class TelegramBot:
             await update._bot.send_message(update.effective_message.chat_id, msg, **kwargs)
 
 
+
+
+    async def verify_discord(self, user_id, update, context) -> None:
+        """
+        Redirect user to Oauth2 verification page. Result can be fetched
+        from inline callback data.
+        """
+        user_data = context.user_data
+        # If no handle set: Notify and return
+        if "discord handle" not in user_data:
+            self.discord_handle(self, update, context)
+
+        # Else: Get user id, put link together and redirect to Discord auth page.
+        # Convert to str if necessary
+        if isinstance(user_id, int):
+            user_id = str(user_id)
+
+        return
+
+
+
+
     async def start(self, update, context) -> int:
         """Start the conversation, show active notifications & button menu."""
+
+        # TODO: Remove
+        log(update)
+        log(context)
 
         chat_id = update.message.chat_id if update.message else context._chat_id
         user_data = context.user_data
@@ -150,6 +178,15 @@ class TelegramBot:
                 reply_text += "\nWill only notify if mentioned in channel"
                 if len(user_data["discord channels"]) > 1: reply_text += "s"
                 reply_text += f"\n{user_data['discord channels']}\n"
+
+            # Show Discord verification status
+            if user_data["verified discord"]:
+                reply_text += "Discord _*verified*_."
+            else:
+                reply_text += (
+                    "\nDiscord _*unverified*_! "
+                    "Please /verify to enable notifications!"
+                )
 
             reply_text += "\n~~~~~~~~~~~~~~~~~~~~~~\n"
 
@@ -573,19 +610,26 @@ class TelegramBot:
                 if self.debug_mode: log(f"received_information():\tPOSSIBILITY 3: OVERWRITE OLD VALUE")
                 context.user_data[category] = text
 
-            # TODO: If coming from roles or channels: Ask if another should be added
-
+            # ====================   POST-STORAGE ACTIONS   ====================
 
             # If new guild has been set -> wipe roles & channels from old guild
             if category == "discord guild" and check:
                 context.user_data["discord roles"] = set()
                 context.user_data["discord channels"] = set()
 
+            # If new Discord handle has been set -> store Discord id & send to verification
+            if category == "discord handle" and check:
+                guild_id = context.user_data["discord guild"]
+                handle = text
+                user_id = await self.discord_bot.get_user_id(guild_id, handle)
+                context.user_data["discord id"] = user_id
+                await self.verify_discord(self, str(user_id), update, context)
+
             # Relay changes to Discord bot
             await self.refresh_discord_bot()
 
             # Show updated data to user
-            ignore_list = ["last callback", "choice"]
+            ignore_list = ["last callback", "choice", "discord id"]
             show_data = {k: v for k, v in context.user_data.items() if k not in ignore_list}
 
             success_msg = (
@@ -734,6 +778,11 @@ class TelegramBot:
         else:
             if self.debug_mode: log(f"received_callback(): UNHANDLED CALLBACK DATA: {callback_data}")
             return await self.start(update, context)
+
+        # TODO: Catch callback data from Discord oauth2
+        #       If user_id matches stored user_id:
+        #       context.user_data["verified discord"] = True
+        #       call start()
 
 
     async def show_source(self, update, context) -> None:
@@ -894,9 +943,11 @@ class TelegramBot:
         # Add additional handlers
         self.application.add_handler(conv_handler)
 
+        auth_handler = CommandHandler("verify", self.verify_discord)
         show_source_handler = CommandHandler("github", self.show_source)
         debug_handler = CommandHandler("debug", self.debug)
 
+        self.application.add_handler(auth_handler)
         self.application.add_handler(show_source_handler)
         self.application.add_handler(debug_handler)
 
