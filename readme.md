@@ -49,7 +49,7 @@ The bot requires python 3.9 and uses the packages listed in [requirements.txt](.
 
 ## Discord Authentication
 
-This bot uses [Oauth2 authentication](https://discord.com/developers/docs/topics/oauth2), which requires a redirect url to send back the verification info safely. Sending oauth data back to a Telegram bot therefore requires a workaround. To enable users to verify their Discord handle, set up an aws api gateway as described [here](https://stackoverflow.com/a/42457831), and don't forget to add the url to the whitelist on the [Discord developer portal](https://discord.com/developers/) under Applications -> OAuth2 -> Redirects.
+This bot uses [Oauth2 authentication](https://discord.com/developers/docs/topics/oauth2), which requires a redirect url to send back the verification info safely. Sending oauth data back to a Telegram bot therefore requires a workaround. To enable users to verify their Discord handle, set up an aws api gateway as described [here](https://stackoverflow.com/a/42457831), add its url to the `.env` file under `OAUTH_REDIRECT_URI=`, and don't forget to also add it to the whitelist on the [Discord developer portal](https://discord.com/developers/) under Applications -> OAuth2 -> Redirects. These two entered urls need to match exactly.
 
 ## State Diagram
 
