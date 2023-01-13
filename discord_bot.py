@@ -270,6 +270,7 @@ class DiscordBot:
 
             line = "\n"+("~"*22)+"\n"
 
+
             # If no user mentions in message -> Skip this part
             if message.mentions != []:
 
@@ -306,22 +307,28 @@ class DiscordBot:
                                     f" {guild.id == target_guild_id}"
                                 )
 
-                            # Condition 1: msg guild matches guild set up by user
-                            if guild.id == target_guild_id:
+                            # Condition 1: User Discord is verified
+                            if self.users[_id]["verified discord"]:
 
-                                if self.debug_mode:
-                                    log(
-                                        f"CHANNEL CHECK: {type(channel)} {channel} in"
-                                        f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
-                                        f"SET UP CHANNELS: {whitelist[_id]}"
-                                    )
+                                # Condition 2: msg guild matches guild set up by user
+                                if guild.id == target_guild_id:
 
-                                # Condition 2: Channel matches or no channels set up
-                                if whitelist[_id] == set():
-                                    await self.send_to_TG(_id, out_msg)
-                                else:
-                                    if channel in whitelist[_id]:
+                                    if self.debug_mode:
+                                        log(
+                                            f"CHANNEL CHECK: {type(channel)} {channel} in"
+                                            f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
+                                            f"SET UP CHANNELS: {whitelist[_id]}"
+                                        )
+
+                                    # Condition 3: Channel matches or no channels set up
+                                    if whitelist[_id] == set():
                                         await self.send_to_TG(_id, out_msg)
+                                    else:
+                                        if channel in whitelist[_id]:
+                                            await self.send_to_TG(_id, out_msg)
+
+                            else:
+                                if self.debug_mode: log("UNVERIFIED DISCORD. NO HANDLE NOTIFICATION SENT.")
 
 
             # If no role mentions in message -> Skip this part
@@ -362,22 +369,26 @@ class DiscordBot:
                                     f" {guild.id == target_guild_id}"
                                 )
 
-                            # Condition 1: msg guild matches guild set up by user
-                            if guild.id == target_guild_id:
+                            # Condition 1: User Discord is verified
+                            if self.users[_id]["verified discord"]:
 
-                                log(
-                                    f"CHANNEL CHECK: {type(channel)} {channel} in"
-                                    f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
-                                    f"SET UP CHANNELS: {whitelist[_id]}"
-                                )
+                                # Condition 2: msg guild matches guild set up by user
+                                if guild.id == target_guild_id:
+                                    if self.debug_mode:
+                                        log(
+                                            f"CHANNEL CHECK: {type(channel)} {channel} in"
+                                            f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
+                                            f"SET UP CHANNELS: {whitelist[_id]}"
+                                        )
 
-                            # Condition 2: Channel matches or no channels set up
-                            if whitelist[_id] == set():
-                                await self.send_to_TG(_id, out_msg)
+                                    # Condition 3: Channel matches or no channels set up
+                                    if whitelist[_id] == set():
+                                        await self.send_to_TG(_id, out_msg)
+                                    else:
+                                        if channel in whitelist[_id]:
+                                            await self.send_to_TG(_id, out_msg)
                             else:
-                                if channel in whitelist[_id]:
-                                    await self.send_to_TG(_id, out_msg)
-
+                                if self.debug_mode: log("UNVERIFIED DISCORD. NO ROLE NOTIFICATION SENT.")
 
         DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
         await client.start(DISCORD_TOKEN)

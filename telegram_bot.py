@@ -7,11 +7,12 @@ Send /start to initiate the conversation on Telegram. Press Ctrl-C on the
 command line to stop the bot.
 """
 
-import logging, os, random, asyncio
+import logging, os, random, asyncio, requests
 from helpers import log, iter_to_str, return_pretty
 from pandas import read_pickle
 from typing import Dict, Union, List
 from dotenv import load_dotenv
+from pprint import pp
 from warnings import filterwarnings
 from telegram.warnings import PTBUserWarning
 from telegram import (
@@ -108,34 +109,151 @@ class TelegramBot:
             await update._bot.send_message(update.effective_message.chat_id, msg, **kwargs)
 
 
+    async def set_verification_status(self, auth_code, update, context) -> None:
+        """
+        Queries Discord API using received auth_code, checks if Discord user id
+        from user's Discord login matches stored id.
+        """
+
+        log("ENDED UP IN set_verification_status()") # TODO: Remove
+        if "choice" in context.user_data: del context.user_data["choice"]
+        context.args = []
+
+        stored_discord_user_id = context.user_data["discord id"]
+        stored_discord_handle = context.user_data["discord handle"]
+
+        # Convert user id to str if necessary (json from web contains str)
+        if isinstance(stored_discord_user_id, int):
+            stored_discord_user_id = str(stored_discord_user_id)
+
+        def build_oauth_obj():
+            d = {}
+            d["client_id"] = os.getenv("OAUTH_DISCORD_CLIENT_ID")
+            d["client_secret"] = os.getenv("OAUTH_DISCORD_CLIENT_SECRET")
+            d["redirect_uri"] = os.getenv("OAUTH_REDIRECT_URI")
+            d["scope"] = 'identify'
+            d["discord_login_url"] = f'https://discordapp.com/api/oauth2/authorize?client_id={d["client_id"]}&redirect_uri={d["redirect_uri"]}&response_type=code&scope={d["scope"]}'
+            d["discord_token_url"] = 'https://discordapp.com/api/oauth2/token'
+            d["discord_api_url"] = 'https://discordapp.com/api'
+            return d
+
+        def get_accesstoken(auth_code, oauth):
+            payload = {
+                "client_id": oauth["client_id"],
+                "client_secret": oauth["client_secret"],
+                "grant_type": "authorization_code",
+                "code": auth_code,
+                "redirect_uri": oauth["redirect_uri"],
+                "scope": oauth["scope"]
+            }
+
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+
+            access_token = requests.post(
+                url = oauth["discord_token_url"],
+                data=payload,
+                headers=headers
+            )
+
+            json = access_token.json()
+            return json.get("access_token")
+
+        def get_userjson(access_token, oauth):
+            url = oauth["discord_api_url"]+'/users/@me'
+            headers = {"Authorization": f"Bearer {access_token}"}
+            user_obj = requests.get(url=url, headers=headers)
+            user_json = user_obj.json()
+            return user_json
+
+        oauth = build_oauth_obj()
+        access_token = get_accesstoken(auth_code, oauth)
+        user_json = get_userjson(access_token, oauth)
+
+        log(f"GOT USER_JSON: {user_json}") # TODO: Remove
+
+        username = user_json.get('username')
+        discriminator = user_json.get('discriminator')
+        user_id = user_json.get('id')
+
+        # If user actually possesses user id: Set verification status to True
+        if user_id == stored_discord_user_id:
+
+            if self.debug_mode: log(f"OAUTH CHECK PASSED")
+
+            context.user_data["verified discord"] = True
+
+            reply_msg = (
+                f"Success! {stored_discord_handle} verified!"
+                " If the menu below still says 'unverified', please"
+                " allow the bot a few seconds to update, then hit"
+                " /menu again."
+            )
+
+        else:
+
+            if self.debug_mode: log(f"OAUTH CHECK FAILED")
+
+            reply_msg = (
+                f"Unfortunately, neither {username} nor {username}#{discriminator} "
+                f"matches {stored_discord_handle}. Unable to verify."
+            )
+
+        await self.send_msg(reply_msg, update)
+        return await self.start(update, context)
 
 
-    async def verify_discord(self, user_id, update, context) -> None:
+    async def verify_menu(self, update, context) -> None:
         """
         Redirect user to Oauth2 verification page. Result can be fetched
         from inline callback data.
         """
+
         user_data = context.user_data
+
         # If no handle set: Notify and return
         if "discord handle" not in user_data:
-            self.discord_handle(self, update, context)
+            await self.send_msg("Please enter a Discord handle first!", update)
+            await self.discord_handle(update, context)
 
-        # Else: Get user id, put link together and redirect to Discord auth page.
-        # Convert to str if necessary
-        if isinstance(user_id, int):
-            user_id = str(user_id)
+        else:
 
-        return
+            def build_oauth_link():
+                client_id = os.getenv("OAUTH_DISCORD_CLIENT_ID")
+                redirect_uri = os.getenv("OAUTH_REDIRECT_URI")
+                scope = 'identify'
+                discord_login_url = f'https://discordapp.com/api/oauth2/authorize?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope={scope}'
+                return discord_login_url
 
+            oauth_link = build_oauth_link()
+
+            msg = (
+                f"Please follow this [link]({oauth_link}) to login with Discord,"
+                f" then hit the start button again, once it appears!"
+            )
+            await self.send_msg(
+                msg,
+                update,
+                disable_web_page_preview=True,
+                parse_mode="Markdown",
+                )
+
+            return
+
+
+    async def start_wrapper(self, update, context) -> int:
+        """Necessary for Oauth2 flow. Calls either menu or Discord verification."""
+        if context.args not in ([], None):
+            auth_code = context.args
+            return await self.set_verification_status(auth_code, update, context)
+        else:
+            return await self.start(update, context)
 
 
 
     async def start(self, update, context) -> int:
         """Start the conversation, show active notifications & button menu."""
-
-        # TODO: Remove
-        log(update)
-        log(context)
 
         chat_id = update.message.chat_id if update.message else context._chat_id
         user_data = context.user_data
@@ -147,7 +265,7 @@ class TelegramBot:
             await self.add_placeholders(update, context)
 
         # Possibility: Known user -> show active notifications & button menu
-        if user_data:
+        if user_data and user_data != {}:
 
             # Get current notification triggers from Discord bot
             await self.refresh_discord_bot()
@@ -181,10 +299,10 @@ class TelegramBot:
 
             # Show Discord verification status
             if user_data["verified discord"]:
-                reply_text += "Discord _*verified*_."
+                reply_text += "Discord _verified_ ✅"
             else:
                 reply_text += (
-                    "\nDiscord _*unverified*_! "
+                    "\nDiscord _unverified_! "
                     "Please /verify to enable notifications!"
                 )
 
@@ -208,7 +326,14 @@ class TelegramBot:
             )
 
         # Send out message
-        await self.send_msg(reply_text, update, reply_markup=self.markup)
+        await self.send_msg(
+            reply_text,
+            update,
+            disable_web_page_preview=True,
+            parse_mode="Markdown",
+            reply_markup=self.markup
+        )
+
         return self.CHOOSING
 
 
@@ -526,7 +651,7 @@ class TelegramBot:
         non_removable = ("discord handle", "discord guild", "delete my data")
 
         # Possibility: User wants to store data, not remove it
-        if callback_data not in removal_triggers or category in non_removable:
+        if (callback_data not in removal_triggers) or (category in non_removable):
 
             # ====================   CASE: STORE DATA   ====================
 
@@ -543,6 +668,8 @@ class TelegramBot:
                 # Automatically add user roles if Discord handle exists
                 if check != None:
                     roles = await self.discord_bot.get_user_roles(text, guild_id)
+                    # If valid new Discord handle: Reset verification status
+                    context.user_data["verified discord"] = False
                     if roles != []:
                         context.user_data["discord roles"] = set(roles)
 
@@ -623,7 +750,7 @@ class TelegramBot:
                 handle = text
                 user_id = await self.discord_bot.get_user_id(guild_id, handle)
                 context.user_data["discord id"] = user_id
-                await self.verify_discord(self, str(user_id), update, context)
+                await self.verify_menu(update, context)
 
             # Relay changes to Discord bot
             await self.refresh_discord_bot()
@@ -779,10 +906,11 @@ class TelegramBot:
             if self.debug_mode: log(f"received_callback(): UNHANDLED CALLBACK DATA: {callback_data}")
             return await self.start(update, context)
 
-        # TODO: Catch callback data from Discord oauth2
+        # TODO: New elif: Catch callback data from Discord oauth2
         #       If user_id matches stored user_id:
         #       context.user_data["verified discord"] = True
         #       call start()
+        #       else: send out msg incl. Hit /menu ...
 
 
     async def show_source(self, update, context) -> None:
@@ -883,10 +1011,10 @@ class TelegramBot:
             Application.builder().token(token).persistence(persistence).build()
         )
 
-        # Define conversation handler with the states CHOOSING, TYPING_CHOICE and TYPING_REPLY
+        # Define conversation handler with the states CHOOSING and TYPING_REPLY
         conv_handler = ConversationHandler(
             entry_points=[
-                CommandHandler("start", self.start),
+                CommandHandler("start", self.start_wrapper),
                 CommandHandler("menu", self.start),
             ],
             states={
@@ -943,10 +1071,12 @@ class TelegramBot:
         # Add additional handlers
         self.application.add_handler(conv_handler)
 
-        auth_handler = CommandHandler("verify", self.verify_discord)
+        start_handler = CommandHandler("start", self.start_wrapper)
+        auth_handler = CommandHandler("verify", self.verify_menu)
         show_source_handler = CommandHandler("github", self.show_source)
         debug_handler = CommandHandler("debug", self.debug)
 
+        self.application.add_handler(start_handler)
         self.application.add_handler(auth_handler)
         self.application.add_handler(show_source_handler)
         self.application.add_handler(debug_handler)
