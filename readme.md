@@ -5,7 +5,7 @@
 ![Preview](https://github.com/jediswaplabs/discord-alert-bot/blob/main/example.png)
 
 
-A Telegram bot sending out a real time notification each time your handle is mentioned on the JediSwap Discord server. To use, start a conversation with [@JediSwapAlertBot](https://t.me/JediSwapAlertBot) on Telegram. This will bring up the bot menu, where you can set up your Discord handle. After entering it, the bot will forward any message mentioning your Discord handle or any of your roles to your Telegram. Notifications can be deactivated for any role or channel using the bot menu.
+A Telegram bot sending out a real time notification each time your handle is mentioned on the JediSwap Discord server. To use, start a conversation with [@JediSwapAlertBot](https://t.me/JediSwapAlertBot) on Telegram. This will bring up the bot menu, where you can set up your Discord handle. After entering it and verifying via Discord, the bot will forward any message mentioning your Discord handle or any of your roles to your Telegram. Notifications can be deactivated for any role or channel using the bot menu.
 
 ## Running the bot on your Discord server
 
@@ -16,6 +16,9 @@ A Telegram bot sending out a real time notification each time your handle is men
 - Rename `sample.env` to `.env` and enter the following information to the file without any spaces or quotes (1 exception):
     * `DISCORD_TOKEN=`your Discord bot token
     * `TELEGRAM_BOT_TOKEN=`your Telegram bot token
+    * `OAUTH_DISCORD_CLIENT_ID=`your Discord application ID
+    * `OAUTH_DISCORD_CLIENT_SECRET=`your Discord client secret
+    * `OAUTH_REDIRECT_URI=`see 'Discord Authentication' below
     * `DEFAULT_GUILD=`your Discord [server ID](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-)
     * `ALLOWED_CHANNEL_CATEGORIES=`"[channel ID,channel ID,channel ID, ...]" (enter the [category channel IDs](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) containing the channels the user is supposed to see in the bot's channels menu)
 - Add the bot to your Discord server as shown [here](https://www.writebots.com/discord-bot-token/) or set up an [invite link](https://discordapi.com/permissions.html#66560).
@@ -25,21 +28,31 @@ A Telegram bot sending out a real time notification each time your handle is men
 
 ## Requirements & Installation
 
-The bot requires python >= 3.7 (3.9 is recommended) and uses the packages listed in `requirements.txt`.
-The best practice would be to install a virtual environment and install the
-requirements afterwards using `pip`:
+The bot requires python 3.9 and uses the packages listed in [requirements.txt](./requirements.txt). The best practice would be to install a virtual environment.
 
-```
-pip install -r requirements.txt
-```
+* Install & activate a virtual environment using either `venv`:
 
-If you're using [anaconda](https://www.anaconda.com), you can create a virtual environment and install the requirements using this code:
+    ```
+    python -m venv venv
+    source venv/bin/activate    # `deactivate` to leave again
+    ```
 
-```
-conda create -n discord-alert-bot python=3.9
-conda activate discord-alert-bot
-pip install -r requirements.txt
-```
+    or [anaconda](https://www.anaconda.com):
+
+    ```
+    conda create -n venv python=3.9
+    conda activate venv         # `conda deactivate` to leave again
+    ```
+
+* Install dependencies:
+
+    ```
+    pip install -r requirements.txt
+    ```
+
+## Discord Authentication
+
+This bot uses [Oauth2 authentication](https://discord.com/developers/docs/topics/oauth2), which requires a whitelisted redirect url to send back the verification info safely. Sending oauth data back to a Telegram bot instead of a website requires a workaround. To enable users to verify their Discord handle, you can set up an aws api gateway as described [here](https://stackoverflow.com/a/42457831). Add its url to the `.env` file under `OAUTH_REDIRECT_URI=`, and don't forget to also add it to the whitelist on the [Discord developer portal](https://discord.com/developers/) under Applications -> OAuth2 -> Redirects. These two entered urls need to match exactly.
 
 ## State Diagram
 
