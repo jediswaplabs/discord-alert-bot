@@ -5,8 +5,7 @@
 
 ![Preview](https://github.com/jediswaplabs/discord-alert-bot/blob/main/example.png)
 
-
-A Telegram bot sending out a real time notification each time your handle is mentioned on the JediSwap Discord server. To use, start a conversation with [@JediSwapAlertBot](https://t.me/JediSwapAlertBot) on Telegram. This will bring up the bot menu, where you can set up your Discord handle. After entering it and verifying via Discord, the bot will forward any message mentioning your Discord handle or any of your roles to your Telegram. Notifications can be deactivated for any role or channel using the bot menu.
+A Telegram bot sending out a real time notification each time your handle is mentioned on the [JediSwap Discord server](https://discord.gg/jediswap). To use, start a conversation with [@JediSwapAlertBot](https://t.me/JediSwapAlertBot) on Telegram. This will bring up the bot menu, where you can set up your Discord handle. After entering it and verifying via Discord, the bot will forward any message mentioning your Discord handle or any of your roles to your Telegram. Notifications can be deactivated for any role or channel using the bot menu.
 
 ## Running the bot on your Discord server
 
