@@ -16,6 +16,9 @@ A Telegram bot sending out a real time notification each time your handle is men
 - Rename `sample.env` to `.env` and enter the following information to the file without any spaces or quotes (1 exception):
     * `DISCORD_TOKEN=`your Discord bot token
     * `TELEGRAM_BOT_TOKEN=`your Telegram bot token
+    * `OAUTH_DISCORD_CLIENT_ID=`your Discord application ID
+    * `OAUTH_DISCORD_CLIENT_SECRET=`your Discord client secret
+    * `OAUTH_REDIRECT_URI=`see 'Discord Authentication' below
     * `DEFAULT_GUILD=`your Discord [server ID](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-)
     * `ALLOWED_CHANNEL_CATEGORIES=`"[channel ID,channel ID,channel ID, ...]" (enter the [category channel IDs](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) containing the channels the user is supposed to see in the bot's channels menu)
 - Add the bot to your Discord server as shown [here](https://www.writebots.com/discord-bot-token/) or set up an [invite link](https://discordapi.com/permissions.html#66560).
@@ -49,7 +52,7 @@ The bot requires python 3.9 and uses the packages listed in [requirements.txt](.
 
 ## Discord Authentication
 
-This bot uses [Oauth2 authentication](https://discord.com/developers/docs/topics/oauth2), which requires a redirect url to send back the verification info safely. Sending oauth data back to a Telegram bot therefore requires a workaround. To enable users to verify their Discord handle, set up an aws api gateway as described [here](https://stackoverflow.com/a/42457831), add its url to the `.env` file under `OAUTH_REDIRECT_URI=`, and don't forget to also add it to the whitelist on the [Discord developer portal](https://discord.com/developers/) under Applications -> OAuth2 -> Redirects. These two entered urls need to match exactly.
+This bot uses [Oauth2 authentication](https://discord.com/developers/docs/topics/oauth2), which requires a whitelisted redirect url to send back the verification info safely. Sending oauth data back to a Telegram bot instead of a website requires a workaround. To enable users to verify their Discord handle, you can set up an aws api gateway as described [here](https://stackoverflow.com/a/42457831). Add its url to the `.env` file under `OAUTH_REDIRECT_URI=`, and don't forget to also add it to the whitelist on the [Discord developer portal](https://discord.com/developers/) under Applications -> OAuth2 -> Redirects. These two entered urls need to match exactly.
 
 ## State Diagram
 

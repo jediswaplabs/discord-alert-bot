@@ -109,139 +109,6 @@ class TelegramBot:
             await update._bot.send_message(update.effective_message.chat_id, msg, **kwargs)
 
 
-    async def set_verification_status(self, auth_code, update, context) -> None:
-        """
-        Queries Discord API using received auth_code, checks if Discord user id
-        from user's Discord login matches stored id.
-        """
-
-        log("ENDED UP IN set_verification_status()") # TODO: Remove
-        if "choice" in context.user_data: del context.user_data["choice"]
-        context.args = []
-
-        stored_discord_user_id = context.user_data["discord id"]
-        stored_discord_handle = context.user_data["discord handle"]
-
-        # Convert user id to str if necessary (json from web contains str)
-        if isinstance(stored_discord_user_id, int):
-            stored_discord_user_id = str(stored_discord_user_id)
-
-        def build_oauth_obj():
-            d = {}
-            d["client_id"] = os.getenv("OAUTH_DISCORD_CLIENT_ID")
-            d["client_secret"] = os.getenv("OAUTH_DISCORD_CLIENT_SECRET")
-            d["redirect_uri"] = os.getenv("OAUTH_REDIRECT_URI")
-            d["scope"] = 'identify'
-            d["discord_login_url"] = f'https://discordapp.com/api/oauth2/authorize?client_id={d["client_id"]}&redirect_uri={d["redirect_uri"]}&response_type=code&scope={d["scope"]}'
-            d["discord_token_url"] = 'https://discordapp.com/api/oauth2/token'
-            d["discord_api_url"] = 'https://discordapp.com/api'
-            return d
-
-        def get_accesstoken(auth_code, oauth):
-            payload = {
-                "client_id": oauth["client_id"],
-                "client_secret": oauth["client_secret"],
-                "grant_type": "authorization_code",
-                "code": auth_code,
-                "redirect_uri": oauth["redirect_uri"],
-                "scope": oauth["scope"]
-            }
-
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded"
-            }
-
-            access_token = requests.post(
-                url = oauth["discord_token_url"],
-                data=payload,
-                headers=headers
-            )
-
-            json = access_token.json()
-            return json.get("access_token")
-
-        def get_userjson(access_token, oauth):
-            url = oauth["discord_api_url"]+'/users/@me'
-            headers = {"Authorization": f"Bearer {access_token}"}
-            user_obj = requests.get(url=url, headers=headers)
-            user_json = user_obj.json()
-            return user_json
-
-        oauth = build_oauth_obj()
-        access_token = get_accesstoken(auth_code, oauth)
-        user_json = get_userjson(access_token, oauth)
-
-        log(f"GOT USER_JSON: {user_json}") # TODO: Remove
-
-        username = user_json.get('username')
-        discriminator = user_json.get('discriminator')
-        user_id = user_json.get('id')
-
-        # If user actually possesses user id: Set verification status to True
-        if user_id == stored_discord_user_id:
-
-            if self.debug_mode: log(f"OAUTH CHECK PASSED")
-
-            context.user_data["verified discord"] = True
-
-            reply_msg = (
-                f"Success! {stored_discord_handle} verified!"
-                " If the menu below still says 'unverified', please"
-                " allow the bot a few seconds to update, then hit"
-                " /menu again."
-            )
-
-        else:
-
-            if self.debug_mode: log(f"OAUTH CHECK FAILED")
-
-            reply_msg = (
-                f"Unfortunately, neither {username} nor {username}#{discriminator} "
-                f"matches {stored_discord_handle}. Unable to verify."
-            )
-
-        await self.send_msg(reply_msg, update)
-        return await self.start(update, context)
-
-
-    async def verify_menu(self, update, context) -> None:
-        """
-        Redirect user to Oauth2 verification page. Result can be fetched
-        from inline callback data.
-        """
-
-        user_data = context.user_data
-
-        # If no handle set: Notify and return
-        if "discord handle" not in user_data:
-            await self.send_msg("Please enter a Discord handle first!", update)
-            await self.discord_handle(update, context)
-
-        else:
-
-            def build_oauth_link():
-                client_id = os.getenv("OAUTH_DISCORD_CLIENT_ID")
-                redirect_uri = os.getenv("OAUTH_REDIRECT_URI")
-                scope = 'identify'
-                discord_login_url = f'https://discordapp.com/api/oauth2/authorize?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope={scope}'
-                return discord_login_url
-
-            oauth_link = build_oauth_link()
-
-            msg = (
-                f"Please follow this [link]({oauth_link}) to login with Discord,"
-                f" then hit the start button again, once it appears!"
-            )
-            await self.send_msg(
-                msg,
-                update,
-                disable_web_page_preview=True,
-                parse_mode="Markdown",
-                )
-
-            return
-
-
     async def start_wrapper(self, update, context) -> int:
         """Necessary for Oauth2 flow. Calls either menu or Discord verification."""
         if context.args not in ([], None):
@@ -249,7 +116,6 @@ class TelegramBot:
             return await self.set_verification_status(auth_code, update, context)
         else:
             return await self.start(update, context)
-
 
 
     async def start(self, update, context) -> int:
@@ -668,7 +534,7 @@ class TelegramBot:
                 # Automatically add user roles if Discord handle exists
                 if check != None:
                     roles = await self.discord_bot.get_user_roles(text, guild_id)
-                    # If valid new Discord handle: Reset verification status
+                    # If new & valid Discord handle entered: Reset verification status
                     context.user_data["verified discord"] = False
                     if roles != []:
                         context.user_data["discord roles"] = set(roles)
@@ -744,13 +610,12 @@ class TelegramBot:
                 context.user_data["discord roles"] = set()
                 context.user_data["discord channels"] = set()
 
-            # If new Discord handle has been set -> store Discord id & send to verification
+            # If new Discord handle has been set -> store Discord id
             if category == "discord handle" and check:
                 guild_id = context.user_data["discord guild"]
                 handle = text
                 user_id = await self.discord_bot.get_user_id(guild_id, handle)
                 context.user_data["discord id"] = user_id
-                await self.verify_menu(update, context)
 
             # Relay changes to Discord bot
             await self.refresh_discord_bot()
@@ -766,6 +631,11 @@ class TelegramBot:
                 " yet, please allow the bot about 10s, then hit /menu again."
             )
 
+            # If new Discord handle has been set -> send to verification menu
+            if category == "discord handle" and check:
+                return await self.verify_menu(update, context)
+
+            # For all other cases: Show updated information & bring back menu
             del context.user_data["choice"]
             await self.send_msg(success_msg, update, reply_markup=self.markup)
             return await self.start(update, context)
@@ -897,7 +767,7 @@ class TelegramBot:
             # Possibility: No Discord username is set yet. Forward to username prompt instead.
             if "discord handle" not in context.user_data:
                 await update.callback_query.message.edit_text("Please enter a Discord username first!")
-                return await self.discord_handle(update, context)# TODO: Check with deleted user if this works!
+                return await self.discord_handle(update, context)
 
             return await self.channels_menu(update, context)
 
@@ -906,11 +776,133 @@ class TelegramBot:
             if self.debug_mode: log(f"received_callback(): UNHANDLED CALLBACK DATA: {callback_data}")
             return await self.start(update, context)
 
-        # TODO: New elif: Catch callback data from Discord oauth2
-        #       If user_id matches stored user_id:
-        #       context.user_data["verified discord"] = True
-        #       call start()
-        #       else: send out msg incl. Hit /menu ...
+
+    async def verify_menu(self, update, context) -> None:
+        """
+        Redirect user to Oauth2 verification page. Result can be fetched
+        from inline callback data.
+        """
+
+        # If no handle set: Notify and skip rest
+        if "discord handle" not in user_data:
+            await self.send_msg("Please enter a Discord handle first!", update)
+            await self.discord_handle(update, context)
+
+        else:
+
+            def build_oauth_link():
+                client_id = os.getenv("OAUTH_DISCORD_CLIENT_ID")
+                redirect_uri = os.getenv("OAUTH_REDIRECT_URI")
+                scope = "identify"
+                discord_login_url = f"https://discordapp.com/api/oauth2/authorize?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code&scope={scope}"
+                return discord_login_url
+
+            oauth_link = build_oauth_link()
+
+            msg = (
+                f"Please follow this [link]({oauth_link}) to login with Discord,"
+                f" then hit the start button once it appears here ⬇️"
+            )
+            await self.send_msg(
+                msg,
+                update,
+                disable_web_page_preview=True,
+                parse_mode="Markdown",
+                )
+
+            return
+
+
+    async def set_verification_status(self, auth_code, update, context) -> None:
+        """
+        Queries Discord API using received auth_code, checks if Discord user id
+        from user's Discord login matches stored id. If so, sets verified flag.
+        """
+
+        context.args = []    # Delete received Oauth code from context object
+
+        stored_discord_user_id = context.user_data["discord id"]
+        stored_discord_handle = context.user_data["discord handle"]
+
+        # Convert user id to str if necessary (json from web contains str)
+        if isinstance(stored_discord_user_id, int):
+            stored_discord_user_id = str(stored_discord_user_id)
+
+        def build_oauth_obj():
+            d = {}
+            d["client_id"] = os.getenv("OAUTH_DISCORD_CLIENT_ID")
+            d["client_secret"] = os.getenv("OAUTH_DISCORD_CLIENT_SECRET")
+            d["redirect_uri"] = os.getenv("OAUTH_REDIRECT_URI")
+            d["scope"] = 'identify'
+            d["discord_login_url"] = f'https://discordapp.com/api/oauth2/authorize?client_id={d["client_id"]}&redirect_uri={d["redirect_uri"]}&response_type=code&scope={d["scope"]}'
+            d["discord_token_url"] = 'https://discordapp.com/api/oauth2/token'
+            d["discord_api_url"] = 'https://discordapp.com/api'
+            return d
+
+        def get_accesstoken(auth_code, oauth):
+            payload = {
+                "client_id": oauth["client_id"],
+                "client_secret": oauth["client_secret"],
+                "grant_type": "authorization_code",
+                "code": auth_code,
+                "redirect_uri": oauth["redirect_uri"],
+                "scope": oauth["scope"]
+            }
+
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+
+            access_token = requests.post(
+                url = oauth["discord_token_url"],
+                data=payload,
+                headers=headers
+            )
+
+            json = access_token.json()
+            return json.get("access_token")
+
+        def get_userjson(access_token, oauth):
+            url = oauth["discord_api_url"]+'/users/@me'
+            headers = {"Authorization": f"Bearer {access_token}"}
+            user_obj = requests.get(url=url, headers=headers)
+            user_json = user_obj.json()
+            return user_json
+
+        oauth = build_oauth_obj()
+        access_token = get_accesstoken(auth_code, oauth)
+        user_json = get_userjson(access_token, oauth)
+
+        username = user_json.get('username')
+        discriminator = user_json.get('discriminator')
+        user_id = user_json.get('id')
+
+        # If user actually possesses user id: Set verification status to True
+        if user_id == stored_discord_user_id:
+
+            if self.debug_mode: log(f"OAUTH CHECK PASSED")
+
+            context.user_data["verified discord"] = True
+
+            reply_msg = (
+                f"Success! {stored_discord_handle} verified!"
+                " If the menu below still says 'unverified', please"
+                " allow the bot a few seconds to update, then hit"
+                " /menu again."
+            )
+
+        else:
+
+            if self.debug_mode: log(f"OAUTH CHECK FAILED")
+
+            reply_msg = (
+                f"Unfortunately, neither {username} nor {username}#{discriminator} "
+                f"matches {stored_discord_handle}. Unable to verify."
+            )
+
+        await self.send_msg(reply_msg, update)
+        await asyncio.sleep(1.5)
+        return await self.start(update, context)
 
 
     async def show_source(self, update, context) -> None:
@@ -940,18 +932,12 @@ class TelegramBot:
             all_channels = [x for x in all_channels if "ticket" not in x.name]
             all_channels = [x for x in all_channels if x.category_id == 852459762640486400]
 
-            devs_channel = guild.get_channel(860920370764840990)
             bot_role = guild.get_role(1055915585332056076)
-            contributors_channel = guild.get_channel(852459854844395540)
-
             bot = guild.get_member(1031609181700104283)
             bot_channels = [x.name for x in all_channels if bot in x.members]
 
-            msg = ""
             msg = (
                 f"\nBot roles: {[x.name for x in guild.get_member(1031609181700104283).roles]}\n"
-                f"\nThreads visible to bot under devs channel: {[x.name for x in devs_channel.threads]}\n"
-                f"\nThreads visible to bot under contributors channel: {[x.name for x in contributors_channel.threads]}\n"
                 f"\nBot is member of channels:\n{bot_channels}"
                 f"\n\n/menu  |  /done  |  /github"
             )
