@@ -93,19 +93,13 @@ class DiscordBot:
             if "discord channels" in v:
                 self.channel_whitelist[k] = v["discord channels"]
 
-        if self.debug_mode:
-            log(
-                f"\nlistening_to:\t\t{self.listening_to}"
-                f"\ndiscord_telegram_map:\t{self.discord_telegram_map}"
-                f"\nchannel_whitelist:\t{self.channel_whitelist}"
-            )
 
     async def send_to_TG(self, telegram_user_id, msg, parse_mode='Markdown') -> None:
         """
         Sends a message a specific Telegram user id.
         Defaults to Markdown V1 for inline link capability.
         """
-        signature = "| _back to /menu_ |"
+
         escape_d = {
             '.': '\.',
             '!': '\!',
@@ -116,7 +110,7 @@ class DiscordBot:
             '.': '\.',
             '_': '\_',
             '`': '\`',
-            '*': '*',
+            '*': '\*',
         }
 
         # Escape markdown characters for main part of TG msg
@@ -138,6 +132,9 @@ class DiscordBot:
             disable_web_page_preview=True,
             parse_mode=parse_mode
             )
+
+        if self.debug_mode:
+            log(f"MESSAGE FORWARDED ({telegram_user_id})!")
 
 
     async def send_to_all(self, msg) -> None:
@@ -166,10 +163,12 @@ class DiscordBot:
         guild = await self.get_guild(guild_id)
         return guild.get_member_named(username)
 
+
     async def get_user_id(self, guild_id, username) -> str:
         """Takes guild id & username, str(<Discord ID>)."""
         user = await self.get_user(guild_id, username)
         return user.id
+
 
     async def get_guild_roles(self, guild_id) -> list:
         """Takes guild id returns list of names of all roles on guild."""
@@ -182,7 +181,6 @@ class DiscordBot:
         guild = await self.get_guild(guild_id)
         user = guild.get_member_named(discord_username)
         roles = [role.name for role in user.roles]
-
         return roles
 
 
@@ -244,7 +242,7 @@ class DiscordBot:
         intents.message_content = True
         self.client = discord.Client(intents=intents)
         client = self.client
-        signature = "| _back to /menu_ |"
+        signature = "| _back to /menu_ |"  # Appended to every notification
 
         # Actions taken at startup
         @client.event
@@ -328,7 +326,7 @@ class DiscordBot:
                                             await self.send_to_TG(_id, out_msg)
 
                             else:
-                                if self.debug_mode: log("UNVERIFIED DISCORD. NO HANDLE NOTIFICATION SENT.")
+                                if self.debug_mode: log(f"UNVERIFIED DISCORD: {_id}. NO HANDLE NOTIFICATION SENT.")
 
 
             # If no role mentions in message -> Skip this part

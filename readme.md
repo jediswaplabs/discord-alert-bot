@@ -22,7 +22,7 @@ A Telegram bot sending out a real time notification each time your handle is men
     * `OAUTH_REDIRECT_URI=`see 'Discord Authentication' below
     * `DEFAULT_GUILD=`your Discord [server ID](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-)
     * `ALLOWED_CHANNEL_CATEGORIES=`"[channel ID,channel ID,channel ID, ...]" (enter the [category channel IDs](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) containing the channels the user is supposed to see in the bot's channels menu)
-- Add the bot to your Discord server as shown [here](https://www.writebots.com/discord-bot-token/) or set up an [invite link](https://discordapi.com/permissions.html#66560).
+- Add the bot to your Discord server as shown [here](https://www.writebots.com/discord-bot-token/) or set up an [invite link](https://discordapi.com/permissions.html#66560) using your client ID (= application ID).
 - _Private channels:_ If the bot does not have a moderator role, he will need to be a member of any private channel the notifications are supposed to work in.
 - Run `python main.py`.
 - If run for longer periods of time, run `nohup python main.py` instead.

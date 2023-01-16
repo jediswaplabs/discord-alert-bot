@@ -891,6 +891,9 @@ class TelegramBot:
                 " /menu again."
             )
 
+            # Relay changes to bot
+            self.refresh_discord_bot()
+
         else:
 
             if self.debug_mode: log(f"OAUTH CHECK FAILED")
