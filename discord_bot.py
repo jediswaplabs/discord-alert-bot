@@ -132,7 +132,8 @@ class DiscordBot:
             disable_web_page_preview=True,
             parse_mode=parse_mode
             )
-
+        if self.debug_mode:
+            log(f"MESSAGE FORWARDED ({telegram_user_id})!")
 
     async def send_to_all(self, msg) -> None:
         """Sends a message to all Telegram bot users except if they wiped their data."""
