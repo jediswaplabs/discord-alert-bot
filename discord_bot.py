@@ -93,12 +93,6 @@ class DiscordBot:
             if "discord channels" in v:
                 self.channel_whitelist[k] = v["discord channels"]
 
-        if self.debug_mode:
-            log(
-                f"\nlistening_to:\t\t{self.listening_to}"
-                f"\ndiscord_telegram_map:\t{self.discord_telegram_map}"
-                f"\nchannel_whitelist:\t{self.channel_whitelist}"
-            )
 
     async def send_to_TG(self, telegram_user_id, msg, parse_mode='Markdown') -> None:
         """
@@ -328,7 +322,7 @@ class DiscordBot:
                                             await self.send_to_TG(_id, out_msg)
 
                             else:
-                                if self.debug_mode: log("UNVERIFIED DISCORD. NO HANDLE NOTIFICATION SENT.")
+                                if self.debug_mode: log(f"UNVERIFIED DISCORD: {_id}. NO HANDLE NOTIFICATION SENT.")
 
 
             # If no role mentions in message -> Skip this part
