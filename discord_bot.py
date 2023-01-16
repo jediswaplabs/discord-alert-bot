@@ -99,7 +99,7 @@ class DiscordBot:
         Sends a message a specific Telegram user id.
         Defaults to Markdown V1 for inline link capability.
         """
-        signature = "| _back to /menu_ |"
+
         escape_d = {
             '.': '\.',
             '!': '\!',
@@ -110,7 +110,7 @@ class DiscordBot:
             '.': '\.',
             '_': '\_',
             '`': '\`',
-            '*': '*',
+            '*': '\*',
         }
 
         # Escape markdown characters for main part of TG msg
@@ -132,8 +132,10 @@ class DiscordBot:
             disable_web_page_preview=True,
             parse_mode=parse_mode
             )
+
         if self.debug_mode:
             log(f"MESSAGE FORWARDED ({telegram_user_id})!")
+
 
     async def send_to_all(self, msg) -> None:
         """Sends a message to all Telegram bot users except if they wiped their data."""
@@ -161,10 +163,12 @@ class DiscordBot:
         guild = await self.get_guild(guild_id)
         return guild.get_member_named(username)
 
+
     async def get_user_id(self, guild_id, username) -> str:
         """Takes guild id & username, str(<Discord ID>)."""
         user = await self.get_user(guild_id, username)
         return user.id
+
 
     async def get_guild_roles(self, guild_id) -> list:
         """Takes guild id returns list of names of all roles on guild."""
@@ -177,7 +181,6 @@ class DiscordBot:
         guild = await self.get_guild(guild_id)
         user = guild.get_member_named(discord_username)
         roles = [role.name for role in user.roles]
-
         return roles
 
 
@@ -239,7 +242,7 @@ class DiscordBot:
         intents.message_content = True
         self.client = discord.Client(intents=intents)
         client = self.client
-        signature = "| _back to /menu_ |"
+        signature = "| _back to /menu_ |"  # Appended to every notification
 
         # Actions taken at startup
         @client.event
