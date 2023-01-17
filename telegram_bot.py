@@ -7,7 +7,7 @@ Send /start to initiate the conversation on Telegram. Press Ctrl-C on the
 command line to stop the bot.
 """
 
-import logging, os, random, asyncio, requests
+import logging, os, random, asyncio, requests, json
 from helpers import log, iter_to_str, return_pretty
 from pandas import read_pickle
 from typing import Dict, Union, List
@@ -533,7 +533,9 @@ class TelegramBot:
                 check = await self.discord_bot.get_user(guild_id, text)
                 # Automatically add user roles if Discord handle exists
                 if check != None:
+                    to_ignore = json.loads(os.getenv("ROLES_EXEMPT_BY_DEFAULT"))
                     roles = await self.discord_bot.get_user_roles(text, guild_id)
+                    roles = [r for r in roles if not any(r.startswith(s) for s in to_ignore)]
                     # If new & valid Discord handle entered: Reset verification status
                     context.user_data["verified discord"] = False
                     if roles != []:
