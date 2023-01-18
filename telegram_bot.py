@@ -154,7 +154,11 @@ class TelegramBot:
                 "Current active notifications:\n"
             )
 
-            reply_text += self.parse_str(active_notifications).replace('handles', 'Handle').replace('roles', 'Roles')
+            # Parse current notifiction settings to nice menu string
+            reply_text += self.parse_str(
+                active_notifications).replace(
+                    '\nhandles', '\n*Handle*').replace(
+                        '\nroles', '\n*Roles*')
 
             # Show Discord channel restirictions if any channels are set up
             if user_data["discord channels"] != set():
@@ -165,11 +169,11 @@ class TelegramBot:
 
             # Show Discord verification status
             if user_data["verified discord"]:
-                reply_text += "Discord _verified_ ✅"
+                reply_text += "*Discord* _verified_ ✅"
             else:
                 reply_text += (
-                    "\nDiscord _unverified_! "
-                    "Please /verify to enable notifications!"
+                    "\n*Discord* _unverified_ 🚫"
+                    "\nPlease /verify to enable notifications!"
                 )
 
             reply_text += "\n~~~~~~~~~~~~~~~~~~~~~~\n"
@@ -534,8 +538,8 @@ class TelegramBot:
                 # Automatically add user roles if Discord handle exists
                 if check != None:
                     to_ignore = json.loads(os.getenv("ROLES_EXEMPT_BY_DEFAULT"))
-                    roles = await self.discord_bot.get_user_roles(text, guild_id)
-                    roles = [r for r in roles if not any(r.startswith(s) for s in to_ignore)]
+                    all_roles = await self.discord_bot.get_user_roles(text, guild_id)
+                    roles = [r for r in all_roles if not any(r.startswith(s) for s in to_ignore)]
                     # If new & valid Discord handle entered: Reset verification status
                     context.user_data["verified discord"] = False
                     if roles != []:
@@ -935,13 +939,16 @@ class TelegramBot:
 
             all_channels = [x for x in guild.channels if not any(w in x.type for w in filter_out)]
             all_channels = [x for x in all_channels if "ticket" not in x.name]
+            welcome_channels = [x.name for x in all_channels if x.category_id == 831809022285709362]
             all_channels = [x for x in all_channels if x.category_id == 852459762640486400]
+
 
             bot_role = guild.get_role(1055915585332056076)
             bot = guild.get_member(1031609181700104283)
             bot_channels = [x.name for x in all_channels if bot in x.members]
 
             msg = (
+                f"\nChannels in 'Welcome' category: {welcome_channels}\n"
                 f"\nBot roles: {[x.name for x in guild.get_member(1031609181700104283).roles]}\n"
                 f"\nBot is member of channels:\n{bot_channels}"
                 f"\n\n/menu  |  /done  |  /github"
