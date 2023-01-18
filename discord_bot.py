@@ -272,9 +272,11 @@ class DiscordBot:
 
             # If message in non-deactivatable channel -> Forward to everyone known to TG bot
             always_active_channels = json.loads(os.getenv("ALWAYS_ACTIVE_CHANNELS"))
-            channel = message.channel.name
+            always_active_channels = [int(x) for x in always_active_channels]
+            channel_id = message.channel.id
 
-            if channel in always_active_channels:
+            if channel_id in always_active_channels:
+                channel = message.channel.name
 
                 if self.debug_mode:
                     log(f"MSG IN ALWAYS ACTIVE CHANNEL ({channel}). SENT TO EVERYONE.")
