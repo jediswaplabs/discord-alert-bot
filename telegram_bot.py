@@ -534,10 +534,18 @@ class TelegramBot:
                     check = None    # Guild ID has to consist of numbers only
 
             elif category == "discord handle":
+
                 check = await self.discord_bot.get_user(guild_id, text)
+
                 # Automatically add user roles if Discord handle exists
                 if check != None:
-                    to_ignore = json.loads(os.getenv("ROLES_EXEMPT_BY_DEFAULT"))
+
+                    try:
+                        to_ignore = json.loads(os.getenv("ROLES_EXEMPT_BY_DEFAULT"))
+                    # Catch error on empty list
+                    except TypeError:
+                        to_ignore = []
+
                     all_roles = await self.discord_bot.get_user_roles(text, guild_id)
                     roles = [r for r in all_roles if not any(r.startswith(s) for s in to_ignore)]
                     # If new & valid Discord handle entered: Reset verification status

@@ -271,7 +271,12 @@ class DiscordBot:
 
 
             # If message in non-deactivatable channel -> Forward to everyone known to TG bot
-            always_active_channels = json.loads(os.getenv("ALWAYS_ACTIVE_CHANNELS"))
+            try:
+                always_active_channels = json.loads(os.getenv("ALWAYS_ACTIVE_CHANNELS"))
+            # catch error on empty list
+            except TypeError:
+                always_active_channels = []
+
             always_active_channels = [int(x) for x in always_active_channels]
             channel_id = message.channel.id
 
