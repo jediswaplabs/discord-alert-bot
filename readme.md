@@ -14,15 +14,15 @@ A Telegram bot sending out a real time notification each time your handle is men
 - [Get a Discord bot token and create an application](https://www.writebots.com/discord-bot-token/) at the Discord developer portal.
 - At the portal, set the bot up with the permission to view channels and add [server members intent and message content intent](https://discordpy.readthedocs.io/en/stable/intents.html#member-intent).
 - [Get a Telegram bot token.](https://riptutorial.com/telegram-bot/example/25075/create-a-bot-with-the-botfather)
-- Rename `sample.env` to `.env` and enter the following information to the file without any spaces or quotes (except for the quotes around lists):
+- Rename `sample.env` to `.env` and enter the following information to the file without any spaces or quotes (except for quotes around lists and around strings within these lists):
     * `DISCORD_TOKEN=`your Discord bot token
     * `TELEGRAM_BOT_TOKEN=`your Telegram bot token
     * `OAUTH_DISCORD_CLIENT_ID=`your Discord application ID
     * `OAUTH_DISCORD_CLIENT_SECRET=`your Discord client secret
     * `OAUTH_REDIRECT_URI=`see 'Discord Authentication' below
     * `DEFAULT_GUILD=`your Discord [server ID](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-)
-    * `ALLOWED_CHANNEL_CATEGORIES=`"[channel ID,channel ID,channel ID, ...]" (enter the [category channel IDs](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) containing the channels the user is supposed to see in the bot's channels menu. Will throw error if left empty.)
-    * `ROLES_EXEMPT_BY_DEFAULT=`"[<role.name>, <role.name>, ...]" (names of all roles supposed to be active by default if the user possesses them)
+    * `ALLOWED_CHANNEL_CATEGORIES=`"[<channel.id>, <channel.id>, ...]" (enter the [category channel IDs](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) containing the channels the user is supposed to see in the bot's channels menu.)
+    * `ROLES_EXEMPT_BY_DEFAULT=`"["<role.name>", "<role.name>", ...]" (names of all roles supposed to be active by default if the user possesses them)
     * `ALWAYS_ACTIVE_CHANNELS=`"[<channel.id>, <channel.id>, ...]" (IDs of the channels supposed to be always active for notifications, even for unverified Discord users. This list is intended for an announcements channel for example, which you want to reach everyone with.)
 - Add the bot to your Discord server as shown [here](https://www.writebots.com/discord-bot-token/) or set up an [invite link](https://discordapi.com/permissions.html#66560) using your client ID (= application ID).
 - _Private channels:_ If the bot does not have a moderator role, he will need to be a member of any private channel the notifications are supposed to work in.

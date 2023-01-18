@@ -540,12 +540,7 @@ class TelegramBot:
                 # Automatically add user roles if Discord handle exists
                 if check != None:
 
-                    try:
-                        to_ignore = json.loads(os.getenv("ROLES_EXEMPT_BY_DEFAULT"))
-                    # Catch error on empty list
-                    except TypeError:
-                        to_ignore = []
-
+                    to_ignore = json.loads(os.getenv("ROLES_EXEMPT_BY_DEFAULT"))
                     all_roles = await self.discord_bot.get_user_roles(text, guild_id)
                     roles = [r for r in all_roles if not any(r.startswith(s) for s in to_ignore)]
                     # If new & valid Discord handle entered: Reset verification status
@@ -796,6 +791,7 @@ class TelegramBot:
         Redirect user to Oauth2 verification page. Result can be fetched
         from inline callback data.
         """
+        user_data = context.user_data
 
         # If no handle set: Notify and skip rest
         if "discord handle" not in user_data:
