@@ -21,9 +21,9 @@ A Telegram bot sending out a real time notification each time your handle is men
     * `OAUTH_DISCORD_CLIENT_SECRET=`your Discord client secret
     * `OAUTH_REDIRECT_URI=`see 'Discord Authentication' below
     * `DEFAULT_GUILD=`your Discord [server ID](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-)
-    * `ALLOWED_CHANNEL_CATEGORIES=`"[<channel.id>, <channel.id>, ...]" (enter the [category channel IDs](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) containing the channels the user is supposed to see in the bot's channels menu.)
-    * `ROLES_EXEMPT_BY_DEFAULT=`"["<role.name>", "<role.name>", ...]" (names of all roles supposed to be active by default if the user possesses them)
-    * `ALWAYS_ACTIVE_CHANNELS=`"[<channel.id>, <channel.id>, ...]" (IDs of the channels supposed to be always active for notifications, even for unverified Discord users. This list is intended for an announcements channel for example, which you want to reach everyone with.)
+    * `ALLOWED_CHANNEL_CATEGORIES=`'[<channel.id>, <channel.id>, ...]' (enter the [category channel IDs](https://support.discord.com/hc/en-us/articles/206346498-Where-can-I-find-my-User-Server-Message-ID-) containing the channels the user is supposed to see in the bot's channels menu.)
+    * `ROLES_EXEMPT_BY_DEFAULT=`'["<role.name>", "<role.name>", ...]' (names of all roles supposed to be active by default if the user possesses them)
+    * `ALWAYS_ACTIVE_CHANNELS=`'[<channel.id>, <channel.id>, ...]' (IDs of the channels supposed to be always active for notifications, even for unverified Discord users. This list is intended for an announcements channel for example, which you want to reach everyone with.)
 - Add the bot to your Discord server as shown [here](https://www.writebots.com/discord-bot-token/) or set up an [invite link](https://discordapi.com/permissions.html#66560) using your client ID (= application ID).
 - _Private channels:_ If the bot does not have a moderator role, he will need to be a member of any private channel the notifications are supposed to work in.
 - Run `python main.py`.
