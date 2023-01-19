@@ -134,7 +134,7 @@ class DiscordBot:
             )
 
         if self.debug_mode:
-            log(f"MESSAGE FORWARDED ({telegram_user_id})!")
+            log(f"FORWARDED A MESSAGE!")
 
 
     async def send_to_all(self, msg) -> None:
@@ -242,7 +242,10 @@ class DiscordBot:
         intents.message_content = True
         self.client = discord.Client(intents=intents)
         client = self.client
-        signature = "| _back to /menu_ |"  # Appended to every notification
+
+        # Divider & signature appended to every notification
+        line = "\n"+("~"*22)+"\n"
+        signature = "| _back to /menu_ |"
 
         # Actions taken at startup
         @client.event
@@ -266,7 +269,25 @@ class DiscordBot:
                     f"message.attachments: {message.attachments}\n"
                 )
 
-            line = "\n"+("~"*22)+"\n"
+
+            # If message in non-deactivatable channel -> Forward to everyone known to TG bot
+            always_active_channels = json.loads(os.getenv("ALWAYS_ACTIVE_CHANNELS"))
+            always_active_channels = [int(x) for x in always_active_channels]
+            channel_id = message.channel.id
+
+            if channel_id in always_active_channels:
+                channel = message.channel.name
+
+                if self.debug_mode:
+                    log(f"MSG IN ALWAYS ACTIVE CHANNEL ({channel}). SENT TO EVERYONE.")
+
+                contents  = message.content[message.content.find(">")+1:]
+                url = message.jump_url
+                header = f"\nMessage in [{channel}]({url}):\n\n"
+                out_msg = line+header+contents+"\n"+line+signature
+                await self.send_to_all(out_msg)
+
+                return    # -> Skip every other case
 
 
             # If no user mentions in message -> Skip this part
