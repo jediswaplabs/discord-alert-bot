@@ -305,7 +305,7 @@ class DiscordBot:
                     # Cycle through all user mentions in message
                     if user in message.mentions:
 
-                        if self.debug_mode: log(f"USER IN MENTIONS: {message.author} mentioned {username}")
+                        if self.debug_mode: log(f"USER IN MENTIONS: {username} mentioned.")
 
                         author, guild, channel = message.author, message.guild, message.channel.name
                         alias, url = user.display_name, message.jump_url
@@ -334,8 +334,8 @@ class DiscordBot:
 
                                     if self.debug_mode:
                                         log(
-                                            f"CHANNEL CHECK: {type(channel)} {channel} in"
-                                            f" {whitelist[_id]}: {channel in whitelist[_id]}\n"
+                                            f"CHANNEL CHECK: {channel} in whitelist:"
+                                            f" {channel in whitelist[_id]}\n"
                                             f"SET UP CHANNELS: {whitelist[_id]}"
                                         )
 
@@ -368,7 +368,7 @@ class DiscordBot:
 
                     if role in rolenames:
 
-                        if self.debug_mode: log(f"MATCHED A ROLE: {message.author} mentioned {role}")
+                        if self.debug_mode: log(f"MATCHED A ROLE: {role} mentioned.")
 
                         author, guild, url = message.author, message.guild, message.jump_url
                         channel = message.channel.name
@@ -383,8 +383,7 @@ class DiscordBot:
 
                             if self.debug_mode:
                                 log(
-                                    f"GUILD CHECK: {type(guild.id)} {guild.id} =="
-                                    f" {type(target_guild_id)} {target_guild_id}:"
+                                    f"GUILD CHECK: {guild.id} == {target_guild_id}:"
                                     f" {guild.id == target_guild_id}"
                                 )
 
