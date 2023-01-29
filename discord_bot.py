@@ -3,9 +3,11 @@
 """
 In this file the DiscordBot class is defined. DiscordBot instantiates a
 Telegram bot of its own to forward the Discord messages to Telegram.
+Messages forwarded using send_to_TG() uses HTML parsing, so the characters
+"<", ">", and "&" will be replaced.
 """
 
-import os, discord, logging, json
+import os, discord, logging, json, re
 from dotenv import load_dotenv
 from telegram import Bot
 from pandas import read_pickle
@@ -94,37 +96,62 @@ class DiscordBot:
                 self.channel_whitelist[k] = v["discord channels"]
 
 
-    async def send_to_TG(self, telegram_user_id, msg, parse_mode='Markdown') -> None:
-        """
-        Sends a message a specific Telegram user id.
-        Defaults to Markdown V1 for inline link capability.
-        """
+    async def send_to_TG(self, telegram_user_id, msg, parse_mode='HTML') -> None:
+        """Sends a message a specific Telegram user id. Defaults to HTML parsing."""
 
-        escape_d = {
-            '.': '\.',
-            '!': '\!',
-            '-': '\-',
-            '#': '\#',
-            '>': '\>',
-            '<': '\<',
-            '.': '\.',
-            '_': '\_',
-            '`': '\`',
-            '*': '\*',
-        }
-
-        # Escape markdown characters for main part of TG msg
+        # Slice forwarded message into content, header & signature
         header_end = msg.find("):\n")
-
-        no_header = msg[header_end+2:]
-        footer_start = no_header.find(22*"~")
-        discord_content = no_header[:footer_start]
-
+        without_header = msg[header_end+2:]
+        footer_start = without_header.find(22*"~")
+        discord_content = without_header[:footer_start]
         header = msg[:header_end+2]
-        footer = no_header[footer_start:]
-        escaped_msg = discord_content.translate(msg.maketrans(escape_d))
+        footer = without_header[footer_start:]
 
-        msg = header + escaped_msg + footer
+        # Possibility: 'Markdown' parse mode -> Escape characters accordingly
+        if parse_mode == 'Markdown':
+
+            escape_d = {
+                '.': '\.',
+                '!': '\!',
+                '-': '\-',
+                '#': '\#',
+                '>': '\>',
+                '<': '\<',
+                '.': '\.',
+                '_': '\_',
+                '`': '\`',
+                '*': '\*',
+            }
+
+            # Escape markdown characters for main part of TG msg only
+            escaped_msg = discord_content.translate(msg.maketrans(escape_d))
+            msg = header + escaped_msg + footer
+
+        # Possibility: Any other parse mode than 'Markdown'
+        else:
+
+            # Escape HTML special characters & add hyperlinks for main part of TG msg
+            msg = discord_content
+
+            def add_html_hyperlinks(_str):
+                """Adds html hyperlink tags around any url starting with http or https."""
+                url_pattern = re.compile(r"""((https://|http://)[^ <>'"{}|\\^`[\]]*)""")
+                return url_pattern.sub(r"<a href='\1'>\1</a>", _str)
+
+            # Replace "&" with &amp everywhere
+            msg = re.sub("&", "&amp", msg)
+
+            # Replace "<" with "&lt" if not followed by "b>", "i>", "/", or "a"
+            lt_not_part_of_tag = "<(?!(b>|i>|/|a))" # negative lookahead
+            msg = re.sub(lt_not_part_of_tag, "&lt", msg)
+
+            # Replace ">" with "&gt" if not preceded by "b", "i", "a", or "'"
+            gt_not_part_of_tag = "(?<!(b|i|a|'))>" # negative lookbehind
+            msg = re.sub(gt_not_part_of_tag, "&gt", msg)
+
+            # Convert urls to hyperlinks & concatenate msg back together
+            msg = add_html_hyperlinks(msg)
+            msg = header + msg + footer
 
         await self.telegram_bot.send_message(
             chat_id=telegram_user_id,
@@ -245,7 +272,7 @@ class DiscordBot:
 
         # Divider & signature appended to every notification
         line = "\n"+("~"*22)+"\n"
-        signature = "| _back to /menu_ |"
+        signature = "| <i>back to /menu</i> |"
 
         # Actions taken at startup
         @client.event
@@ -281,9 +308,9 @@ class DiscordBot:
                 if self.debug_mode:
                     log(f"MSG IN ALWAYS ACTIVE CHANNEL ({channel}). SENT TO EVERYONE.")
 
-                contents  = message.content[message.content.find(">")+1:]
+                contents = message.content[message.content.find(">")+1:]
                 url = message.jump_url
-                header = f"\nMessage in [{channel}]({url}):\n\n"
+                header = f"\nMessage in <a href='{url}'>{channel}</a>:\n\n"
                 out_msg = line+header+contents+"\n"+line+signature
                 await self.send_to_all(out_msg)
 
@@ -311,7 +338,7 @@ class DiscordBot:
                         alias, url = user.display_name, message.jump_url
                         contents = message.content[message.content.find(">")+1:]
                         if author.nick: author = author.nick
-                        header = f"\nMentioned by {author} in {guild.name} in [{channel}]({url}):\n\n"
+                        header = f"\nMentioned by {author} in {guild.name} in <a href='{url}'>{channel}</a>:\n\n"
                         out_msg = line+header+contents+"\n"+line+signature
 
                         # Cycle through all TG ids connected to this Discord handle
@@ -373,7 +400,7 @@ class DiscordBot:
                         author, guild, url = message.author, message.guild, message.jump_url
                         channel = message.channel.name
                         contents = message.content[message.content.find(">")+1:]
-                        header = f"{role} mentioned in {guild.name} in [{channel}]({url}):\n\n"
+                        header = f"{role} mentioned in {guild.name} in <a href='{url}'>{channel}</a>:\n\n"
                         out_msg = line+header+contents+"\n"+line+signature
 
                         # Cycle through all TG ids connected to this Discord role
