@@ -96,30 +96,72 @@ class DiscordBot:
                 self.channel_whitelist[k] = v["discord channels"]
 
 
-    async def send_to_TG(self, telegram_user_id, content, line="", header="", signature="", parse_mode='HTML') -> None:
+    async def send_to_TG(self, telegram_user_id, content, line="", header="", signature="", guild=None, parse_mode='HTML') -> None:
         """
         Sends a message a specific Telegram user id. Escapes some characters.
         Adds dividing lines, header & signature to msg. Defaults to HTML parsing.
         """
-
-        # Escape HTML special characters & add hyperlinks for main part of TG msg
 
         def add_html_hyperlinks(_str):
             """Adds html hyperlink tags around any url starting with http or https."""
             url_pattern = re.compile(r"""((https://|http://)[^ <>'"{}|\\^`[\]]*)""")
             return url_pattern.sub(r"<a href='\1'>\1</a>", _str)
 
-        # Replace "&" with "&amp;" everywhere
-        content = re.sub("&", "&amp;", content)
+        def resolve_usernames(_str, guild):
+            """Replace mentions of user ids with their actual nicks/names."""
 
-        # Replace "<" with "&lt;" if not followed by "b>", "i>", "/", or "a"
-        lt_not_part_of_tag = "<(?!(b>|i>|/|a))" # negative lookahead
-        content = re.sub(lt_not_part_of_tag, "&lt;", content)
+            user_mention = r"<@[0-9]+>"
+            user_ids = re.findall(user_mention, _str)
 
-        # Replace ">" with "&gt;" if not preceded by "b", "i", "a", or "'"
-        gt_not_part_of_tag = "(?<!(b|i|a|'))>" # negative lookbehind
-        content = re.sub(gt_not_part_of_tag, "&gt;", content)
+            # Replace each user id with a nickname or username
+            for id_match in user_ids:
+                id_int = int(id_match.strip('<>@'))
+                member = guild.get_member(id_int)
+                name = member.name
+                if member.nick: name = member.nick
+                _str = _str.replace(id_match, str("🌀<i>"+name+"</i>"))
 
+            return _str
+
+        def resolve_role_names(_str, guild):
+            """Replace mentions of user ids with their actual nicks/names."""
+
+            role_mention = r"<@&[0-9]+>"
+            role_ids = re.findall(role_mention, _str)
+
+            # Replace each user id with a nickname or username
+            for id_match in role_ids:
+                id_int = int(id_match.strip('<>@&'))
+                role = guild.get_role(id_int)
+                name = role.name
+                _str = _str.replace(id_match, str("🌀<i>"+name+"</i>"))
+
+            return _str
+
+        def escape_chars(_str):
+            """
+            Replace the HTML special character "&".
+            Replace "<", ">", "&" if not within HTML tags <b>, <i> and <a>.
+            """
+            # Replace "&" with "&amp;" everywhere
+            _str = re.sub("&", "&amp;", _str)
+
+            # Replace "<" with "&lt;" if not followed by "b>", "i>", "/", or "a"
+            lt_not_part_of_tag = "<(?!(b>|i>|u>|/|a))" # negative lookahead
+            _str = re.sub(lt_not_part_of_tag, "&lt;", _str)
+
+            # Replace ">" with "&gt;" if not preceded by "b", "i", "a", or "'"
+            gt_not_part_of_tag = "(?<!(b|i|a|u|'))>" # negative lookbehind
+            _str = re.sub(gt_not_part_of_tag, "&gt;", _str)
+
+            return _str
+
+        # Replace mentioned user ids with usernames
+        content = resolve_usernames(content, guild)
+        # Replace mentioned role ids with role names
+        content = resolve_role_names(content, guild)
+        # Replace special chars with their escape seqences
+        content = escape_chars(content)
         # Convert urls to hyperlinks & concatenate msg back together
         content = add_html_hyperlinks(content)
 
@@ -259,6 +301,7 @@ class DiscordBot:
             # If message in non-deactivatable channel -> Forward to everyone known to TG bot
             always_active_channels = json.loads(os.getenv("ALWAYS_ACTIVE_CHANNELS"))
             always_active_channels = [int(x) for x in always_active_channels]
+            guild = message.guild
             channel_id = message.channel.id
 
             if channel_id in always_active_channels:
@@ -267,7 +310,7 @@ class DiscordBot:
                 if self.debug_mode:
                     log(f"MSG IN ALWAYS ACTIVE CHANNEL ({channel}). SENT TO EVERYONE.")
 
-                content = message.content[message.content.find(">")+1:]
+                content = message.content
                 url = message.jump_url
                 header = f"\nMessage in <a href='{url}'>{channel}</a>:\n\n"
 
@@ -275,7 +318,8 @@ class DiscordBot:
                     content,
                     line=line,
                     header=header,
-                    signature=signature
+                    signature=signature,
+                    guild=guild
                 )
 
                 return    # -> Skip every other case
@@ -298,11 +342,12 @@ class DiscordBot:
 
                         if self.debug_mode: log(f"USER IN MENTIONS: {username} mentioned.")
 
-                        author, guild, channel = message.author, message.guild, message.channel.name
+                        msg_author, guild, channel = message.author, message.guild, message.channel.name
                         alias, url = user.display_name, message.jump_url
-                        content = message.content[message.content.find(">")+1:]
-                        if author.nick: author = author.nick
-                        header = f"\nMentioned by {author} in {guild.name} in <a href='{url}'>{channel}</a>:\n\n"
+                        content = message.content
+                        author = msg_author.name
+                        if msg_author.nick: author = msg_author.nick
+                        header = f"\nMentioned by 🌀<i>{author}</i> in <a href='{url}'>{channel}</a>:\n\n"
 
                         # Cycle through all TG ids connected to this Discord handle
                         for _id in self.discord_telegram_map["handles"][username]:
@@ -337,7 +382,8 @@ class DiscordBot:
                                             content,
                                             line=line,
                                             header=header,
-                                            signature=signature
+                                            signature=signature,
+                                            guild=guild
                                         )
 
                                     else:
@@ -349,7 +395,8 @@ class DiscordBot:
                                                 content,
                                                 line=line,
                                                 header=header,
-                                                signature=signature
+                                                signature=signature,
+                                                guild=guild
                                             )
 
                             else:
@@ -376,10 +423,11 @@ class DiscordBot:
 
                         if self.debug_mode: log(f"MATCHED A ROLE: {role} mentioned.")
 
-                        author, guild, url = message.author, message.guild, message.jump_url
+                        guild = message.guild
+                        url = message.jump_url
                         channel = message.channel.name
-                        content = message.content[message.content.find(">")+1:]
-                        header = f"{role} mentioned in <a href='{url}'>{channel}</a>:\n\n"
+                        content = message.content
+                        header = f"<i>{role}</i> mentioned in <a href='{url}'>{channel}</a>:\n\n"
 
                         # Cycle through all TG ids connected to this Discord role
                         for _id in self.discord_telegram_map["roles"][role]:
@@ -412,7 +460,8 @@ class DiscordBot:
                                             content,
                                             line=line,
                                             header=header,
-                                            signature=signature
+                                            signature=signature,
+                                            guild=guild
                                         )
 
                                     else:
@@ -424,7 +473,8 @@ class DiscordBot:
                                                 content,
                                                 line=line,
                                                 header=header,
-                                                signature=signature
+                                                signature=signature,
+                                                guild=guild
                                             )
                             else:
                                 if self.debug_mode: log("UNVERIFIED DISCORD. NO ROLE NOTIFICATION SENT.")
