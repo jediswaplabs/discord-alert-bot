@@ -98,7 +98,7 @@ class DiscordBot:
 
     async def send_to_TG(self, telegram_user_id, content, line="", header="", signature="", guild=None, parse_mode='HTML') -> None:
         """
-        Sends a message a specific Telegram user id. Escapes some characters.
+        Sends a message a specific Telegram user id. Does some replacing & escaping.
         Adds dividing lines, header & signature to msg. Defaults to HTML parsing.
         """
 
@@ -129,12 +129,28 @@ class DiscordBot:
             role_mention = r"<@&[0-9]+>"
             role_ids = re.findall(role_mention, _str)
 
-            # Replace each user id with a nickname or username
+            # Replace each role id with its name
             for id_match in role_ids:
                 id_int = int(id_match.strip('<>@&'))
                 role = guild.get_role(id_int)
                 name = role.name
                 _str = _str.replace(id_match, str("🌀<i>"+name+"</i>"))
+
+            return _str
+
+        def resolve_channels(_str, guild):
+            """Replace mentions of user ids with their actual nicks/names."""
+
+            channel_mention = r"&lt;#[0-9]+&gt;"
+            channel_ids = re.findall(channel_mention, _str)
+
+            # Wrap a hyperlink around each channel id
+            for id_match in channel_ids:
+                id_int = int(id_match.strip('&lgt;#'))
+                channel = guild.get_channel_or_thread(id_int)
+                name = channel.name
+                url = channel.jump_url
+                _str = _str.replace(id_match, f"<a href='{url}'>{name}</a>")
 
             return _str
 
@@ -156,14 +172,18 @@ class DiscordBot:
 
             return _str
 
+        # Execute replacements (order matters to avoid double hyperlinking)
+
         # Replace mentioned user ids with usernames
         content = resolve_usernames(content, guild)
         # Replace mentioned role ids with role names
         content = resolve_role_names(content, guild)
         # Replace special chars with their escape seqences
         content = escape_chars(content)
-        # Convert urls to hyperlinks & concatenate msg back together
+        # Convert urls in content to hyperlinks & concatenate msg back together
         content = add_html_hyperlinks(content)
+        # Add hyperlinks around mentioned channels
+        content = resolve_channels(content, guild)
 
         parsed_msg = line+header+content+"\n"+line+signature
 
