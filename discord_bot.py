@@ -24,7 +24,7 @@ class DiscordBot:
         # Instantiate Telegram bot to send out messages to users
         TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
         self.telegram_bot = Bot(TELEGRAM_TOKEN)
-        # Set of Discord usernames & roles that trigger Telegram notifications
+        # Sets of Discord usernames & roles that trigger Telegram notifications
         self.listening_to = {"handles": set(), "roles": set()}
         # Reverse lookup {"handles": {discord username: {telegram id, telegram id}}
         self.discord_telegram_map = {"handles": {}, "roles": {}}
@@ -96,66 +96,38 @@ class DiscordBot:
                 self.channel_whitelist[k] = v["discord channels"]
 
 
-    async def send_to_TG(self, telegram_user_id, msg, parse_mode='HTML') -> None:
-        """Sends a message a specific Telegram user id. Defaults to HTML parsing."""
+    async def send_to_TG(self, telegram_user_id, content, line="", header="", signature="", parse_mode='HTML') -> None:
+        """
+        Sends a message a specific Telegram user id. Escapes some characters.
+        Adds dividing lines, header & signature to msg. Defaults to HTML parsing.
+        """
 
-        # Slice forwarded message into content, header & signature
-        header_end = msg.find("):\n")
-        without_header = msg[header_end+2:]
-        footer_start = without_header.find(22*"~")
-        discord_content = without_header[:footer_start]
-        header = msg[:header_end+2]
-        footer = without_header[footer_start:]
+        # Escape HTML special characters & add hyperlinks for main part of TG msg
 
-        # Possibility: 'Markdown' parse mode -> Escape characters accordingly
-        if parse_mode == 'Markdown':
+        def add_html_hyperlinks(_str):
+            """Adds html hyperlink tags around any url starting with http or https."""
+            url_pattern = re.compile(r"""((https://|http://)[^ <>'"{}|\\^`[\]]*)""")
+            return url_pattern.sub(r"<a href='\1'>\1</a>", _str)
 
-            escape_d = {
-                '.': '\.',
-                '!': '\!',
-                '-': '\-',
-                '#': '\#',
-                '>': '\>',
-                '<': '\<',
-                '.': '\.',
-                '_': '\_',
-                '`': '\`',
-                '*': '\*',
-            }
+        # Replace "&" with "&amp;" everywhere
+        content = re.sub("&", "&amp;", content)
 
-            # Escape markdown characters for main part of TG msg only
-            escaped_msg = discord_content.translate(msg.maketrans(escape_d))
-            msg = header + escaped_msg + footer
+        # Replace "<" with "&lt;" if not followed by "b>", "i>", "/", or "a"
+        lt_not_part_of_tag = "<(?!(b>|i>|/|a))" # negative lookahead
+        content = re.sub(lt_not_part_of_tag, "&lt;", content)
 
-        # Possibility: Any other parse mode than 'Markdown'
-        else:
+        # Replace ">" with "&gt;" if not preceded by "b", "i", "a", or "'"
+        gt_not_part_of_tag = "(?<!(b|i|a|'))>" # negative lookbehind
+        content = re.sub(gt_not_part_of_tag, "&gt;", content)
 
-            # Escape HTML special characters & add hyperlinks for main part of TG msg
-            msg = discord_content
+        # Convert urls to hyperlinks & concatenate msg back together
+        content = add_html_hyperlinks(content)
 
-            def add_html_hyperlinks(_str):
-                """Adds html hyperlink tags around any url starting with http or https."""
-                url_pattern = re.compile(r"""((https://|http://)[^ <>'"{}|\\^`[\]]*)""")
-                return url_pattern.sub(r"<a href='\1'>\1</a>", _str)
-
-            # Replace "&" with &amp everywhere
-            msg = re.sub("&", "&amp", msg)
-
-            # Replace "<" with "&lt" if not followed by "b>", "i>", "/", or "a"
-            lt_not_part_of_tag = "<(?!(b>|i>|/|a))" # negative lookahead
-            msg = re.sub(lt_not_part_of_tag, "&lt", msg)
-
-            # Replace ">" with "&gt" if not preceded by "b", "i", "a", or "'"
-            gt_not_part_of_tag = "(?<!(b|i|a|'))>" # negative lookbehind
-            msg = re.sub(gt_not_part_of_tag, "&gt", msg)
-
-            # Convert urls to hyperlinks & concatenate msg back together
-            msg = add_html_hyperlinks(msg)
-            msg = header + msg + footer
+        parsed_msg = line+header+content+"\n"+line+signature
 
         await self.telegram_bot.send_message(
             chat_id=telegram_user_id,
-            text=msg,
+            text=parsed_msg,
             disable_web_page_preview=True,
             parse_mode=parse_mode
             )
@@ -164,11 +136,11 @@ class DiscordBot:
             log(f"FORWARDED A MESSAGE!")
 
 
-    async def send_to_all(self, msg) -> None:
+    async def send_to_all(self, content, **kwargs) -> None:
         """Sends a message to all Telegram bot users except if they wiped their data."""
         TG_ids = [k for k, v in self.users.items() if v != {}]
         for _id in TG_ids:
-            await self.send_to_TG(_id, msg)
+            await self.send_to_TG(_id, content, **kwargs)
 
 
     async def get_guild(self, guild_id) -> discord.Guild:
@@ -284,19 +256,6 @@ class DiscordBot:
         @client.event
         async def on_message(message):
 
-            if self.debug_mode == 'messages':
-                log(
-                    f"Discord message: {message}\n"
-                    f"message.channel.name: {message.channel.name}\n"
-                    f"message.mentions: {message.mentions}\n"
-                    f"message.role_mentions: {message.role_mentions}\n"
-                    f"message.channel_mentions: {message.channel_mentions}\n"
-                    f"message.embeds: {message.embeds}\n"
-                    f"message.flags: {message.flags}\n"
-                    f"message.attachments: {message.attachments}\n"
-                )
-
-
             # If message in non-deactivatable channel -> Forward to everyone known to TG bot
             always_active_channels = json.loads(os.getenv("ALWAYS_ACTIVE_CHANNELS"))
             always_active_channels = [int(x) for x in always_active_channels]
@@ -308,11 +267,16 @@ class DiscordBot:
                 if self.debug_mode:
                     log(f"MSG IN ALWAYS ACTIVE CHANNEL ({channel}). SENT TO EVERYONE.")
 
-                contents = message.content[message.content.find(">")+1:]
+                content = message.content[message.content.find(">")+1:]
                 url = message.jump_url
                 header = f"\nMessage in <a href='{url}'>{channel}</a>:\n\n"
-                out_msg = line+header+contents+"\n"+line+signature
-                await self.send_to_all(out_msg)
+
+                await self.send_to_all(
+                    content,
+                    line=line,
+                    header=header,
+                    signature=signature
+                )
 
                 return    # -> Skip every other case
 
@@ -336,10 +300,9 @@ class DiscordBot:
 
                         author, guild, channel = message.author, message.guild, message.channel.name
                         alias, url = user.display_name, message.jump_url
-                        contents = message.content[message.content.find(">")+1:]
+                        content = message.content[message.content.find(">")+1:]
                         if author.nick: author = author.nick
                         header = f"\nMentioned by {author} in {guild.name} in <a href='{url}'>{channel}</a>:\n\n"
-                        out_msg = line+header+contents+"\n"+line+signature
 
                         # Cycle through all TG ids connected to this Discord handle
                         for _id in self.discord_telegram_map["handles"][username]:
@@ -368,10 +331,26 @@ class DiscordBot:
 
                                     # Condition 3: Channel matches or no channels set up
                                     if whitelist[_id] == set():
-                                        await self.send_to_TG(_id, out_msg)
+
+                                        await self.send_to_TG(
+                                            _id,
+                                            content,
+                                            line=line,
+                                            header=header,
+                                            signature=signature
+                                        )
+
                                     else:
+
                                         if channel in whitelist[_id]:
-                                            await self.send_to_TG(_id, out_msg)
+
+                                            await self.send_to_TG(
+                                                _id,
+                                                content,
+                                                line=line,
+                                                header=header,
+                                                signature=signature
+                                            )
 
                             else:
                                 if self.debug_mode: log(f"UNVERIFIED DISCORD: {_id}. NO HANDLE NOTIFICATION SENT.")
@@ -399,9 +378,8 @@ class DiscordBot:
 
                         author, guild, url = message.author, message.guild, message.jump_url
                         channel = message.channel.name
-                        contents = message.content[message.content.find(">")+1:]
-                        header = f"{role} mentioned in {guild.name} in <a href='{url}'>{channel}</a>:\n\n"
-                        out_msg = line+header+contents+"\n"+line+signature
+                        content = message.content[message.content.find(">")+1:]
+                        header = f"{role} mentioned in <a href='{url}'>{channel}</a>:\n\n"
 
                         # Cycle through all TG ids connected to this Discord role
                         for _id in self.discord_telegram_map["roles"][role]:
@@ -428,10 +406,26 @@ class DiscordBot:
 
                                     # Condition 3: Channel matches or no channels set up
                                     if whitelist[_id] == set():
-                                        await self.send_to_TG(_id, out_msg)
+
+                                        await self.send_to_TG(
+                                            _id,
+                                            content,
+                                            line=line,
+                                            header=header,
+                                            signature=signature
+                                        )
+
                                     else:
+
                                         if channel in whitelist[_id]:
-                                            await self.send_to_TG(_id, out_msg)
+
+                                            await self.send_to_TG(
+                                                _id,
+                                                content,
+                                                line=line,
+                                                header=header,
+                                                signature=signature
+                                            )
                             else:
                                 if self.debug_mode: log("UNVERIFIED DISCORD. NO ROLE NOTIFICATION SENT.")
 
