@@ -96,10 +96,10 @@ class DiscordBot:
                 self.channel_whitelist[k] = v["discord channels"]
 
 
-    async def send_to_TG(self, telegram_user_id, content, line="", header="", signature="", guild=None, parse_mode='HTML') -> None:
+    async def send_to_TG(self, telegram_user_id, content, header="", guild=None, parse_mode='HTML') -> None:
         """
         Sends a message a specific Telegram user id. Does some replacing & escaping.
-        Adds dividing lines, header & signature to msg. Defaults to HTML parsing.
+        Adds header to msg. Defaults to HTML parsing.
         """
 
         def add_html_hyperlinks(_str):
@@ -108,7 +108,7 @@ class DiscordBot:
             return url_pattern.sub(r"<a href='\1'>\1</a>", _str)
 
         def resolve_usernames(_str, guild):
-            """Replace mentions of user ids with their actual nicks/names."""
+            """Replaces mentions of user ids with their actual nicks/names."""
 
             user_mention = r"<@[0-9]+>"
             user_ids = re.findall(user_mention, _str)
@@ -124,7 +124,7 @@ class DiscordBot:
             return _str
 
         def resolve_role_names(_str, guild):
-            """Replace mentions of user ids with their actual nicks/names."""
+            """Replaces mentions of user ids with their actual nicks/names."""
 
             role_mention = r"<@&[0-9]+>"
             role_ids = re.findall(role_mention, _str)
@@ -139,7 +139,7 @@ class DiscordBot:
             return _str
 
         def resolve_channels(_str, guild):
-            """Replace mentions of user ids with their actual nicks/names."""
+            """Replaces mentions of user ids with their actual nicks/names."""
 
             channel_mention = r"&lt;#[0-9]+&gt;"
             channel_ids = re.findall(channel_mention, _str)
@@ -156,7 +156,7 @@ class DiscordBot:
 
         def escape_chars(_str):
             """
-            Replace the HTML special character "&".
+            Replaces the HTML special character "&".
             Replace "<", ">", "&" if not within HTML tags <b>, <i> and <a>.
             """
             # Replace "&" with "&amp;" everywhere
@@ -185,7 +185,7 @@ class DiscordBot:
         # Add hyperlinks around mentioned channels
         content = resolve_channels(content, guild)
 
-        parsed_msg = line+header+content+"\n"+line+signature
+        parsed_msg = header+content
 
         await self.telegram_bot.send_message(
             chat_id=telegram_user_id,
@@ -304,10 +304,6 @@ class DiscordBot:
         self.client = discord.Client(intents=intents)
         client = self.client
 
-        # Divider & signature appended to every notification
-        line = "\n"+("~"*22)+"\n"
-        signature = "| <i>back to /menu</i> |"
-
         # Actions taken at startup
         @client.event
         async def on_ready():
@@ -336,9 +332,7 @@ class DiscordBot:
 
                 await self.send_to_all(
                     content,
-                    line=line,
                     header=header,
-                    signature=signature,
                     guild=guild
                 )
 
@@ -400,9 +394,7 @@ class DiscordBot:
                                         await self.send_to_TG(
                                             _id,
                                             content,
-                                            line=line,
                                             header=header,
-                                            signature=signature,
                                             guild=guild
                                         )
 
@@ -413,9 +405,7 @@ class DiscordBot:
                                             await self.send_to_TG(
                                                 _id,
                                                 content,
-                                                line=line,
                                                 header=header,
-                                                signature=signature,
                                                 guild=guild
                                             )
 
@@ -478,9 +468,7 @@ class DiscordBot:
                                         await self.send_to_TG(
                                             _id,
                                             content,
-                                            line=line,
                                             header=header,
-                                            signature=signature,
                                             guild=guild
                                         )
 
@@ -491,9 +479,7 @@ class DiscordBot:
                                             await self.send_to_TG(
                                                 _id,
                                                 content,
-                                                line=line,
                                                 header=header,
-                                                signature=signature,
                                                 guild=guild
                                             )
                             else:
