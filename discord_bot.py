@@ -10,8 +10,9 @@ Messages forwarded using send_to_TG() uses HTML parsing, so the characters
 import os, discord, logging, json, re
 from dotenv import load_dotenv
 from telegram import Bot
+from telegram.error import Forbidden
 from pandas import read_pickle
-from helpers import return_pretty, log, iter_to_str
+from helpers import return_pretty, log, iter_to_str, write_to_pickle
 load_dotenv()
 
 
@@ -187,21 +188,40 @@ class DiscordBot:
 
         parsed_msg = header+content
 
-        await self.telegram_bot.send_message(
-            chat_id=telegram_user_id,
-            text=parsed_msg,
-            disable_web_page_preview=True,
-            parse_mode=parse_mode
-            )
+        # Send to user unless they deleted (=blocked) the chat with the bot.
+        try:
+            await self.telegram_bot.send_message(
+                chat_id=telegram_user_id,
+                text=parsed_msg,
+                disable_web_page_preview=True,
+                parse_mode=parse_mode
+                )
 
-        if self.debug_mode:
-            log(f"FORWARDED A MESSAGE!")
+            if self.debug_mode:
+                log(f"FORWARDED A MESSAGE!")
+
+        # If blocked by user -> Delete from database (no more announcements for them).
+        except Forbidden:
+
+            log(f"Blocked by user {telegram_user_id}. Didn't forward.")
+
+            data = read_pickle(self.data_path)
+
+            if int(telegram_user_id) in data["user_data"]:
+
+                del data["user_data"][int(telegram_user_id)]
+                write_to_pickle(data, self.data_path)
+                log(f"Deleted user {telegram_user_id} from database.")
+
+                await self.refresh_data()
 
 
     async def send_to_all(self, content, **kwargs) -> None:
         """Sends a message to all Telegram bot users except if they wiped their data."""
         TG_ids = [k for k, v in self.users.items() if v != {}]
+
         for _id in TG_ids:
+
             await self.send_to_TG(_id, content, **kwargs)
 
 
