@@ -348,7 +348,9 @@ class DiscordBot:
 
                 content = message.content
                 url = message.jump_url
-                header = f"\nMessage in <a href='{url}'>{channel}</a>:\n\n"
+                author = message.author.name
+
+                header = f"\n🌀<i>{author}</i> posted in <a href='{url}'>{channel}</a>:\n\n"
 
                 await self.send_to_all(
                     content,
@@ -457,7 +459,10 @@ class DiscordBot:
                         url = message.jump_url
                         channel = message.channel.name
                         content = message.content
-                        header = f"<i>{role}</i> mentioned in <a href='{url}'>{channel}</a>:\n\n"
+                        author = message.author.name
+
+                        header = f"🌀<i>{author}</i> mentioned <i>{role}</i> in <a href='{url}'>{channel}</a>:\n\n"
+
 
                         # Cycle through all TG ids connected to this Discord role
                         for _id in self.discord_telegram_map["roles"][role]:
